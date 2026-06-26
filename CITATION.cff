@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
-type: software
+message: "If you use this software or dataset, please cite the arXiv paper below."
+type: article
 title: "Elevator-LIO: Robust LiDAR-Inertial Odometry for Multi-Floor Navigation under Elevator-Induced Non-Inertial Motion"
 authors:
   - given-names: Yifan
