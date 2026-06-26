@@ -234,7 +234,8 @@ elevator:
     enable: false # 退出电梯后是否用已有 ikd-tree 地图做仅 z 方向 ICP 修正
 ```
 
-自动进入检测在狭窄走廊等封闭环境中可能误触发；可以关闭 `door_detector.enable`，改用 `/LIO/set_elevator_flag` 手动触发。重定位配置中默认开启 `exit_icp_z.enable`，建图配置中默认关闭，详细参数见 [yaml/README.md](yaml/README.md)。
+> [!WARNING]
+> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。重定位配置中默认开启 `exit_icp_z.enable`，建图配置中默认关闭，详细参数见 [yaml/README.md](yaml/README.md)。
 
 - **重定位设置**，启用重定位时记得修改参考地图文件
 

@@ -227,7 +227,8 @@ elevator:
     enable: false
 ```
 
-Automatic entry detection may be triggered in narrow corridors. Disable `door_detector.enable` and use `/LIO/set_elevator_flag` for manual triggering when needed. `exit_icp_z.enable` is enabled by default in relocation mode and disabled by default in mapping mode. See [yaml/README.md](yaml/README.md) for all parameters.
+> [!WARNING]
+> Elevator exit detection is relatively stable, but automatic entry detection may be falsely triggered in narrow corridors or other enclosed spaces. You can tune the `door_detector` thresholds for your scene, or publish your own trigger signal; see the topic-triggering commands in the "Elevator Mode" section above. `exit_icp_z.enable` is enabled by default in relocation mode and disabled by default in mapping mode. See [yaml/README.md](yaml/README.md) for all parameters.
 
 - **Relocation**. When enabling relocation, update the reference map file:
 
