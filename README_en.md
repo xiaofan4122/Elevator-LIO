@@ -16,6 +16,9 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
   <img src="docs/images/background.jpg" alt="Elevator-LIO overview" width="100%">
 </p>
 
+> [!WARNING]
+> Elevator-LIO allows the robot to move freely inside an elevator, but we recommend using a wide-FOV LiDAR such as Livox MID-360 with a tilted mounting angle to obtain geometric constraints from as many directions as possible. If your LiDAR is mounted horizontally and the robot barely moves vertically inside the elevator, set `elevator.strong_prior_enable` under `yaml/runtime` to `true`. This option strongly interprets vertical IMU acceleration as elevator acceleration, allowing the system to work under this mounting condition.
+
 ## Timeline
 
 - **2026-05-23**: [arXiv preprint](https://arxiv.org/abs/2605.24495) released.

@@ -18,6 +18,9 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
   <img src="docs/images/background.jpg" alt="Elevator-LIO overview" width="100%">
 </p>
 
+> [!WARNING]
+> Elevator-LIO 允许机器人在电梯内自由移动，但建议使用 Livox MID-360 这类视场较大的 LiDAR，并采用倾斜安装，以获得尽可能多方向上的几何约束。如果您的 LiDAR 水平安装，且机器人在电梯内基本不会产生上下运动，请将 `yaml/runtime` 中的 `elevator.strong_prior_enable` 设置为 `true`。该选项会将 IMU 垂直方向加速度强约束解释为电梯加速度，使系统在此类安装条件下也能正常工作。
+
 ## 时间节点
 
 - **2026-05-23**：[arXiv 预印本](https://arxiv.org/abs/2605.24495)公开。
