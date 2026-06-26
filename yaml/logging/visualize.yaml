@@ -1,0 +1,69 @@
+log:
+  enabled: true # 日志总开关；false 时关闭控制台分类日志和所有文件日志
+  session_dir: "temp" # 每次运行的日志根目录，相对项目目录；实际输出到 temp/<启动时间>/
+  flush_interval_ms: 1000 # 文件缓冲刷新周期 [ms]；越小越不易因异常退出丢日志，但磁盘写入更频繁
+
+  console:
+    enabled: true # 控制台日志总开关
+    info: true # 是否输出 INFO 级别
+    warn: true # 是否输出 WARN 级别
+    error: true # 是否输出 ERROR 级别
+    debug: false # 是否输出 DEBUG 级别（包括传感器频率等高频调试信息）
+    fsm: false # 是否输出有限状态机切换日志
+    elevator: false # 是否输出电梯检测、ZUPT、退出 ICP 等详细日志
+    perf: true # 是否周期输出 LiDAR 更新耗时、迭代次数和匹配质量统计
+
+  file:
+    enabled: true # 文件日志总开关；各通道还需各自 enabled=true
+
+    trajectory:
+      enabled: true # LiDAR 更新后的后验轨迹，用于轨迹评估和 Bag Runner 分析
+      every_n: 1 # 每 N 帧记录一次
+      file: "state/post_state.csv" # 相对本次运行日志目录
+
+    trajectory_prior:
+      enabled: false # LiDAR 更新前的 IMU 传播先验轨迹
+      every_n: 10 # 每 N 次记录一次
+      file: "state/pre_state.csv"
+
+    raw_imu:
+      enabled: true # 保存接收到的原始 IMU 数据；数据量较大
+      every_n: 5 # 每 N 条 IMU 消息记录一次
+      file: "sensor/raw_imu.csv"
+
+    adaptive_downsample:
+      enabled: true # 记录自适应体素大小、输入/输出点数和目标点数
+      every_n: 1 # 每 N 帧记录一次
+      file: "map/adaptive_downsample.csv"
+
+    wheel_data:
+      enabled: false # 保存接收到的轮速计原始数据
+      every_n: 10 # 每 N 条轮速消息记录一次
+      file: "sensor/wheel_data.csv"
+
+    wheel_residual:
+      enabled: false # 保存轮速计量测与当前状态之间的速度残差
+      every_n: 10 # 每 N 次轮速更新记录一次
+      file: "debug/wheel_residual.csv"
+
+    elevator_debug:
+      enabled: true # 记录电梯状态机输入、门检测量和运动阶段，便于分析触发过程
+      every_n: 5 # 每 N 个 IMU 处理周期记录一次
+      file: "debug/elevator_debug.csv"
+
+    elevator_zupt:
+      enabled: true # 记录 ZUPT 前后状态、楼层高度提交和退出 z-ICP 相关文本
+      file: "debug/elevator_zupt.txt" # 文本日志；无 every_n 时默认每次事件都记录
+
+    publish_time:
+      enabled: false # 记录点云和里程计等 ROS 消息发布耗时
+      every_n: 20 # 每 N 次发布统计记录一次
+      file: "perf/publish_time.csv"
+
+    ikdtree_snapshot:
+      enabled: false # 匹配异常或退出保存时导出 ikd-tree 点云快照；耗时且占用磁盘
+      file_prefix: "debug/ikdtree_cloud" # 输出文件前缀，程序会追加时间戳和 .pcd
+
+visualize:
+  CovMatrix_vis: true # 使用 OpenCV 窗口实时显示 21×21 状态协方差；明显消耗 CPU/GPU
+  EleState_vis: true # 使用 OpenCV 窗口显示电梯状态历史曲线；明显消耗 CPU/GPU

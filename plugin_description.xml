@@ -1,0 +1,9 @@
+<library path="lib/liblio_rviz_plugins">
+  <class name="lio/ElevatorStatusPanel"
+         type="lio_rviz_plugins::ElevatorStatusPanel"
+         base_class_type="rviz::Panel">
+    <description>
+      Displays elevator mode, relative displacement, velocity and acceleration.
+    </description>
+  </class>
+</library>

@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>lio</name>
+  <version>0.1.0</version>
+  <description>LiDAR-inertial odometry for continuous localization through elevator motion.</description>
+  <maintainer email="xiaofan0100@sjtu.edu.cn">Yifan Zhang</maintainer>
+  <license>GPL-2.0-or-later</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <exec_depend>roscpp</exec_depend>
+  <build_depend>rospy</build_depend>
+  <exec_depend>rospy</exec_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <build_depend>nav_msgs</build_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <build_depend>std_msgs</build_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <build_depend>pcl_ros</build_depend>
+  <exec_depend>pcl_ros</exec_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <exec_depend>pcl_conversions</exec_depend>
+  <build_depend>tf2_ros</build_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <depend>std_srvs</depend>
+  <depend>rviz</depend>
+  <depend>pluginlib</depend>
+
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_generation</exec_depend>
+  <build_depend>message_runtime</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+
+  <export>
+    <build_type>catkin</build_type>
+    <rviz plugin="${prefix}/plugin_description.xml"/>
+  </export>
+</package>

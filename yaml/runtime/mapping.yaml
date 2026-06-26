@@ -1,0 +1,106 @@
+downsample:
+  point_filter_num: 2 # 订阅点云时的降采样比例 [ 确保为正整数 ]
+  blind: 0.8 # 订阅点云时忽略距离小于 blind 的点 [ 单位：m ]
+  use_box_blind: false # true: 删除 LiDAR 坐标系中长方体内的自遮挡点，此时不使用球形 blind
+  box_corner: # LiDAR 坐标系下长方体的 x/y/z 范围 [min, max]，单位 m
+    box_corner_x: [-0.7, 0.1]
+    box_corner_y: [-0.3, 0.3]
+    box_corner_z: [-0.4, 0.4]
+  filter_size: 0.1 # 固定模式的体素大小；自适应模式下作为初始体素大小
+  # Feature 功能 —— 自适应降采样，且控制的是每秒点数而不是每帧点数，适用性较广
+  adaptive:
+    enable: true # 是否启用变体素大小降采样 (根据点数自动调整体素大小)
+    target_points: 20000 # 目标每秒点数 (会按输入时间戳折算到每帧)
+    alpha: 1.2 # 幂律指数
+    min_voxel: 0.05 # 最小体素
+    max_voxel: 0.8 # 最大体素
+
+map:
+  local_map_cube_len: 1500.0 # 局部 ikd-tree 地图立方体边长 [m]，超出时清理旧地图
+
+relocation:
+  # Feature 功能 —— 将pcd文件预先加载进 ikdtree 中，同时关闭地图积累，可用于重定位，但仅能在原点附近启动
+  relocation_enable: false # 是否开启重定位
+  pcd_load_name: "20251229-203113_scans.pcd" # 重定位时加载的 .pcd 文件名称，相对 PCD 文件夹
+
+pcd_save:
+  global_map_save_enable: true # 是否保存全局点云 [ 只在未开启重定位时有效 ]
+  every_n_frame_save: -1 # 保存单帧点云（world系），每 n 帧保存一次， -1 表示不单独保存每帧pcd地图
+  timestamp_prefix: true # 是否在名称前加上时间戳
+  pcd_save_name: "scans.pcd" # 保存点云的名称，相对 PCD 文件夹
+
+pub:
+  global_map_pub_enable: false # 是否发布全局地图 [ 耗时较长，可视化需要，实际使用中不建议开启 ] [ 只在未开启重定位且保存全局点云时有效 ]
+  ikdtree_pub_enable: false # 是否发布 ikdtree 中的点云 [ 耗时较长，可视化需要，实际使用中不建议开启 ]
+  clouds_lidar_pub_every_n: 1 # lidar系当前帧点云每隔多少帧发布一次；1表示每帧发布，5表示每5帧发布一次
+  high_frequency_odom: false # 是否在两帧 LiDAR 之间按 IMU 预积分状态高频发布里程计
+  lidar_frequency: 10.0 # LiDAR 频率 [Hz]；启用 high_frequency_odom 时必须设置为真实频率
+
+
+topic_pub:
+  clouds_lidar_topic_name: "/LIO/clouds_lidar"  # lidar系当前帧点云发布的话题名
+  clouds_lidar_effect_topic_name: "/LIO/clouds_lidar/effect"  # lidar系当前帧有效点云（用于拟合平面的点）
+  clouds_lidar_reject_topic_name: "/LIO/clouds_lidar/reject" # lidar系当前帧认为不是平面的点（被滤除点）
+  global_map_topic_name: "/LIO/global_map"  # 全局地图发布的话题名 [ 受 pub 开关影响 ]
+  ikdtree_topic_name: "/LIO/ikdtree"  # ikdtree 发布的话题名 [ 受 pub 开关影响 ]
+  odom_imu_topic_name: "/LIO/odom_imu"  # imu位姿发布的话题名
+  odom_vehicle_topic_name: "/LIO/odom_vehicle"  # body位姿发布的话题名 如果 body_T_lidar 为单位阵，则相当于 odom_lidar
+
+elevator:
+  # Feature 功能 —— Elevator-LIO核心功能，电梯段的处理
+  enable: true # 电梯模式总开关；关闭后忽略自动检测和手动触发
+  self_exit_detector: true # 基于 IMU 电梯运动阶段与停稳检测自动退出电梯模式
+  door_detector:
+    enable: true # 是否启用电梯门关闭自动检测
+    dist_threshold: 3.0 # 过滤后最远点小于该距离时认为轿厢封闭 [m]
+    time_threshold: 2.0 # 封闭状态持续多久后触发电梯模式 [s]
+    filter_percent: 0.06 # 计算最远距离时忽略最远端点的比例
+    cooldown_time: 5.0 # 两次自动触发之间的冷却时间 [s]
+  # Beta 功能 —— 施加物体相对电梯没有z方向运动的先验，主要解决某些雷达水平安装，激光点完全没有z方向约束的情况，但仅适用于在电梯无上下相对运动的情况
+  strong_prior_enable: false # 电梯模式下是否将 IMU 竖直加速度强先验解释为电梯加速度 az
+  strong_prior_acc_var: 0.001 # 强先验 EKF 量测方差 [(m/s^2)^2]，越小越信任 IMU 竖直加速度
+  zupt:
+    enable: true # 电梯相关 ZUPT 总开关
+    # Beta 功能 —— 在进入电梯模式后周期性触发ZUPT，直到电梯运动才停止更新，解决在电梯内长时间停留但电梯实际没有启动的情况
+    waiting:
+      enable: true # 是否启用等待阶段的周期性 ZUPT
+      period_s: 3.0 # 等待阶段 ZUPT 检测周期 [s]
+      vz_abs_thresh: 0.1 # 触发等待 ZUPT 的 |vz| 阈值
+      az_abs_thresh: 0.1 # 触发等待 ZUPT 的 |az| 阈值
+  # Beta 功能 —— 到底新楼层时约束当前帧与历史地图重合，在重定位模式下默认开启，可以增强稳定性
+  exit_icp_z:
+    enable: false # 到达新楼层并完成退出 ZUPT 后，使用当前帧与已有 ikd-tree 地图做仅 z 方向 ICP
+    max_correction_m: 0.3 # ICP 的总 z 修正必须严格小于该值才接受 [m]
+    max_iterations: 5 # 最大迭代次数
+    min_effective_points: 20 # 有效点面对少于该值时拒绝
+    min_information_ratio: 0.1 # mean(n_z^2)；过低表示 z 方向退化
+    max_neighbor_distance_m: 0.5 # 专用于退出 ICP 的 KNN 最远邻点距离，避免跨轿厢高度配对 [m]
+    min_abs_normal_z: 0.7 # 只有接近水平面的对应点参与 z 求解
+    max_residual_m: 0.3 # ICP 点面对应的最大残差 [m]
+    converge_m: 1.0e-3 # 单次 z 增量收敛阈值 [m]
+  rebuild_map_on_exit:
+    enable: false # 是否在退出电梯后清空旧地图并重建
+    frames: 5 # 重建地图累计的 LiDAR 帧数
+    min_points: 2000 # 重建地图所需的最少累计点数
+
+wheel:
+  # Feature 功能 —— 触发式更新方法便于进行状态融合，这里保留轮速计融合代码
+  wheel_enable: false # 是否启用轮速计更新
+
+estimator:
+  lidar_update_mode: "pose6" # pose6 / full21；LiDAR残差仅对姿态和位置有直接雅可比，pose6 只构建6维量测矩阵，但与 full21 结果一致
+  online_gravity_estimation_enable: false # 是否在线估计重力；false 时固定使用初始化重力
+  lidar_ieskf:
+    max_iterations: 4 # 每帧最大迭代次数
+    converge_rot_rad: 1.0e-3 # 旋转收敛阈值 [rad]
+    converge_pos_m: 1.0e-3 # 位置收敛阈值 [m]
+    rematch_rot_rad: 2.0e-3 # 触发重新匹配的旋转阈值 [rad]
+    rematch_pos_m: 2.0e-3 # 触发重新匹配的位置阈值 [m]
+  ikdtree_match:
+    knn: 5 # 最近邻数量
+    plane_fit_rmse_threshold: 0.05 # 平面拟合 RMSE 阈值 [m]
+    neighbor_max_dist2: 5.0 # 最远邻点的最大平方距离 [m^2]
+    gate_mode: "linear_range" # 匹配门限模式：linear_range / fastlio_score
+    score_min: 0.95 # fastlio_score 模式的最低分数
+    match_thresh_base: 0.03 # linear_range 模式的基础残差阈值 [m]
+    match_thresh_scale: 0.01 # linear_range 模式的距离缩放系数

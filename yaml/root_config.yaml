@@ -1,0 +1,13 @@
+# 选择传感器、运行时和日志配置文件。
+# 路径相对于此 yaml/ 目录。三个文件不得包含重复的键；
+# Select one sensor, runtime and logging configuration.
+# Paths are relative to this yaml/ directory. The three files must not
+
+sensor_config: "sensors/livox.yaml"      # 传感器配置：雷达类型、外参、话题订阅
+#sensor_config: "sensors/ouster.yaml"     # ouster
+#sensor_config: "sensors/velodyne.yaml"   # velodyne
+#sensor_config: "sensors/xt32.yaml"       # xt32
+runtime_config: "runtime/mapping.yaml"   # 运行时配置：体素降采样、ikd-tree、电梯检测、IESKF 估计器
+#runtime_config: "runtime/relocation.yaml"   # 重定位模式
+logging_config: "logging/default.yaml"   # 日志配置：控制台/文件日志开关、可视化选项
+#logging_config: "logging/visualize.yaml"   # 带 协方差/电梯状态 可视化【非常占用资源】

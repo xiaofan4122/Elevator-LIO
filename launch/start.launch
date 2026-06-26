@@ -1,0 +1,15 @@
+<launch>
+
+    <arg name="config_path" default="root_config.yaml" />
+
+    <!-- 启动自定义节点 -->
+    <node name="lio" pkg="lio" type="lio" output="screen">
+        <param name="config_path" value="$(arg config_path)" />
+    </node>
+
+    <!-- 启动 rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(dirname)/../rviz/LIO.rviz">
+        <env name="DISABLE_ROS1_EOL_WARNINGS" value="1" />
+    </node>
+
+</launch>

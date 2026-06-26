@@ -1,0 +1,19 @@
+lidar_type: 3 # Livox = 1, Ouster = 2, Velodyne = 3, XT32 = 4
+
+offset:
+  imu_t_lidar: [ -0.011 , -0.02329, 0.04412] # IMU系下激光雷达的位置
+  imu_R_lidar:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  lidar_t_body: [ 0.27255 , -0.00053, 0.17954] # Lidar系下小车中心的位置
+  lidar_R_body: # Lidar系下小车的旋转
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+
+topic_sub:
+  lidar_topic_name: "/velodyne_points"
+  imu_topic_name: "/handsfree/imu"
+  wheel_topic_name: "/wheel_info" # 注意，轮速计话题的回调函数 receive_wheel 需要根据实际修改
+  elevator_flag_topic_name: "/LIO/set_elevator_flag"

@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Elevator-LIO: Robust LiDAR-Inertial Odometry for Multi-Floor Navigation under Elevator-Induced Non-Inertial Motion"
+authors:
+  - given-names: Yifan
+    family-names: Zhang
+  - given-names: Yudong
+    family-names: Huang
+  - given-names: Yuchong
+    family-names: Zhang
+  - given-names: Changze
+    family-names: Li
+  - given-names: Haoran
+    family-names: Liu
+  - given-names: Ming
+    family-names: Yang
+  - given-names: Tong
+    family-names: Qin
+year: 2026
+identifiers:
+  - type: other
+    value: arXiv:2605.24495
+    description: arXiv preprint
+url: https://arxiv.org/abs/2605.24495
+license: GPL-2.0-or-later

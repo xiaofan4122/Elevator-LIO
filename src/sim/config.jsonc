@@ -1,0 +1,95 @@
+{
+  "simulation": {
+    "frequency": 200,
+    "duration_buffer": 2.0,
+    "output_file": "trajectory.csv",
+    "seed": 0
+  },
+  "elevator": {
+    "max_velocity": 2.0,
+    "max_acceleration": 1.0,
+    "output_csv": "elevator_truth.csv",
+    "tilt_pitch_deg": 0.0,
+    "dimensions": {
+      "width": 2.1,
+      "depth": 2.1,
+      "height": 2.6
+    },
+    "sequence": [
+      { "type": "WAIT", "duration": 9.0 },
+      { "type": "MOVE", "delta_height": 5.0 },
+      { "type": "WAIT", "duration": 3.0 },
+      { "type": "MOVE", "delta_height": 5.0 },
+      { "type": "WAIT", "duration": 3.0 },
+      { "type": "MOVE", "delta_height": -5.0 },
+      { "type": "WAIT", "duration": 3.0 },
+      { "type": "MOVE", "delta_height": -5.0 },
+      { "type": "WAIT", "duration": 3.0 }
+    ]
+  },
+  "perturbations": {
+    "time_varying_gravity_drift": {
+      "enable": false,
+      "step_deg": 0.0
+    },
+    "cabin_inclination_error": {
+      "pitch_deg": 0.0
+    },
+    "initial_gravity_misalignment": {
+      "enable": false,
+      "duration_s": 1.0,
+      "angle_deg": 0.0,
+      "azimuth_deg": 0.0,
+      "random_direction": false
+    }
+  },
+  "object": {
+    "description": "Relative motion inside elevator car",
+    "output_csv": "object_rel_truth.csv",
+    "world_output_csv": "object_world_truth.csv",
+    "waypoints": [
+      { "time": 0.0,  "x": -0.5, "y": 0.0, "z": 1.0, "rpy": [0.0, 45.0, 0.0], "stop": true },
+      { "time": 3.0, "x": -0.5, "y": 0.0, "z": 1.0, "rpy": [0.0, 45.0, 0.0], "stop": true },
+//      { "time": 18.0, "x": 0.5, "y": 0.5, "z": 1.0, "rpy": [0.0, 45.0, -90.0], "stop": false },
+      { "time": 18.0, "x": 0.5, "y": 0.5, "z": 1.0, "rpy": [0.0, 45.0, -90.0], "stop": false },
+//      { "time": 28.0, "x": 0.0, "y": 0.8, "z": 1.0, "rpy": [0.0, 45.0, 90.0], "stop": true },
+      { "time": 28.0, "x": 0.0, "y": 0.8, "z": 1.0, "rpy": [0.0, 45.0, 90.0], "stop": true },
+//      { "time": 35.0, "x": 0.0, "y": 0.0, "z": 1.0, "rpy": [0.0, 30.0, 120.0], "stop": false },
+      { "time": 35.0, "x": 0.0, "y": 0.0, "z": 1.0, "rpy": [0.0, 45.0, 120.0], "stop": false },
+      { "time": 45.0, "x": 0.0, "y": 0.0, "z": 1.0, "rpy": [0.0, 45.0, 0.0], "stop": true }
+    ]
+  },
+  "sensors": {
+    "imu": {
+      "rate": 200,
+      "topic": "/sim/imu",
+      "frame_id": "sim_imu",
+      "acc_noise_std": 0.01,
+      "gyro_noise_std": 0.001,
+      "gravity_w": [0.0, 0.0, -9.81]
+    },
+    "lidar": {
+      "rate": 10,
+      "topic": "/sim/lidar",
+      "frame_id": "sim_lidar",
+      "num_points": 360,
+      "range_min": 0.1,
+      "range_max": 30.0,
+      "range_noise_std": 0.01,
+      "angle_noise_std_deg": 0.01,
+      "vertical_fov_deg": 30.0,
+      "vertical_beams": 32
+    },
+    "elevator_flag": {
+      "topic": "/LIO/set_elevator_flag",
+      "value": true,
+      "lead_time_s": 0.1
+    },
+    "offset": {
+      "imu_t_lidar": [ -0.011 , -0.02329, 0.04412],
+      "imu_R_lidar": [1.0, 0.0, 0.0,
+                      0.0, 1.0, 0.0,
+                      0.0, 0.0, 1.0]
+    }
+  }
+}

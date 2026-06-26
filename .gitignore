@@ -1,0 +1,13 @@
+cmake-build-debug
+cmake-build-release
+.idea
+__pycache__/
+*.py[cod]
+*.pcd
+*.txt
+*.csv
+*.tum
+*.sh
+src/ELE_TEST/bak
+temp
+!scripts/*
