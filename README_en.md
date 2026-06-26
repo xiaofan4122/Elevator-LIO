@@ -24,7 +24,7 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
 - **2026-05-23**: [arXiv preprint](https://arxiv.org/abs/2605.24495) released.
 - **2026-05-26**: Public announcement on [Xiaohongshu / RedNote](http://xhslink.com/o/9MTzcbzjGaQ).
 - **2026-06-06**: [@编程猫小渐](http://xhslink.com/o/5bhSpWqEbeO) reproduced the Elevator-LIO paper results.
-- **2026-06-20**: [Elevator-LIO dataset](https://huggingface.co/datasets/xiaofan0100/Elevator-LIO-Dataset) released, including 20 real-world sequences and 79 elevator rides; two additional sequences from @编程猫小渐 are also included.
+- **2026-06-20**: [Elevator-LIO dataset](https://huggingface.co/datasets/xiaofan0100/Elevator-LIO-Dataset) released, including 20 sequences and 79 elevator rides; two additional sequences from @编程猫小渐 are also included.
 - **2026-06-22**: Published the [rosbag manager video](https://www.bilibili.com/video/BV1n3jt64Eoi/?share_source=copy_web&vd_source=392db04838f1edf7d12e58a3d68775d8); the tool is released together with Elevator-LIO.
 - **2026-06-26**: ROS 1 source code released.
 - **Planned**: ROS 2 source code release.
