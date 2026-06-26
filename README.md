@@ -25,7 +25,8 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 
 - **2026-05-23**：[arXiv 预印本](https://arxiv.org/abs/2605.24495)公开。
 - **2026-05-26**：[小红书](http://xhslink.com/o/9MTzcbzjGaQ) 公开宣传。
-- **2026-06-20**：[Elevator-LIO 数据集](https://huggingface.co/datasets/xiaofan0100/Elevator-LIO-Dataset)公开，包含 20 条真实场景序列和 79 次电梯乘坐。
+- **2026-06-06**：[@编程猫小渐](http://xhslink.com/o/5bhSpWqEbeO) 复现 Elevator-LIO 论文结果。
+- **2026-06-20**：[Elevator-LIO 数据集](https://huggingface.co/datasets/xiaofan0100/Elevator-LIO-Dataset)公开，包含 20 条真实场景序列和 79 次电梯乘坐；额外收录 @编程猫小渐 的两条数据。
 - **2026-06-26**：ROS 1 源码发布。
 - **计划中**：ROS 2 源码发布。
 - **计划中**：更多数据集发布，包括更多带图像的完整序列。

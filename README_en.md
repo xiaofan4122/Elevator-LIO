@@ -23,7 +23,8 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
 
 - **2026-05-23**: [arXiv preprint](https://arxiv.org/abs/2605.24495) released.
 - **2026-05-26**: Public announcement on [Xiaohongshu / RedNote](http://xhslink.com/o/9MTzcbzjGaQ).
-- **2026-06-20**: [Elevator-LIO dataset](https://huggingface.co/datasets/xiaofan0100/Elevator-LIO-Dataset) released, including 20 real-world sequences and 79 elevator rides.
+- **2026-06-06**: [@编程猫小渐](http://xhslink.com/o/5bhSpWqEbeO) reproduced the Elevator-LIO paper results.
+- **2026-06-20**: [Elevator-LIO dataset](https://huggingface.co/datasets/xiaofan0100/Elevator-LIO-Dataset) released, including 20 real-world sequences and 79 elevator rides; two additional sequences from @编程猫小渐 are also included.
 - **2026-06-26**: ROS 1 source code released.
 - **Planned**: ROS 2 source code release.
 - **Planned**: More dataset releases, including additional complete sequences with images.
