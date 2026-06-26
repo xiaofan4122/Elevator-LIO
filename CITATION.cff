@@ -1,7 +1,7 @@
 cff-version: 1.2.0
-message: "If you use this software or dataset, please cite the arXiv paper below."
-type: article
-title: "Elevator-LIO: Robust LiDAR-Inertial Odometry for Multi-Floor Navigation under Elevator-Induced Non-Inertial Motion"
+message: "If you use this software or dataset, please cite the preferred arXiv paper below."
+type: software
+title: "Elevator-LIO"
 authors:
   - given-names: Yifan
     family-names: Zhang
@@ -18,9 +18,30 @@ authors:
   - given-names: Tong
     family-names: Qin
 year: 2026
-identifiers:
-  - type: other
-    value: arXiv:2605.24495
-    description: arXiv preprint
-url: https://arxiv.org/abs/2605.24495
+repository-code: "https://github.com/xiaofan4122/Elevator-LIO"
 license: GPL-2.0-or-later
+preferred-citation:
+  type: article
+  title: "Elevator-LIO: Robust LiDAR-Inertial Odometry for Multi-Floor Navigation under Elevator-Induced Non-Inertial Motion"
+  authors:
+    - given-names: Yifan
+      family-names: Zhang
+    - given-names: Yudong
+      family-names: Huang
+    - given-names: Yuchong
+      family-names: Zhang
+    - given-names: Changze
+      family-names: Li
+    - given-names: Haoran
+      family-names: Liu
+    - given-names: Ming
+      family-names: Yang
+    - given-names: Tong
+      family-names: Qin
+  year: 2026
+  journal: "arXiv preprint arXiv:2605.24495"
+  identifiers:
+    - type: other
+      value: "arXiv:2605.24495"
+      description: "arXiv preprint"
+  url: "https://arxiv.org/abs/2605.24495"

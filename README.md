@@ -322,7 +322,7 @@ relocation:
 使用本软件或数据集时，请引用 Elevator-LIO 论文：
 
 ```bibtex
-@article{zhang2026elevator,
+@article{zhang2026elevatorlio,
   title={Elevator-LIO: Robust LiDAR-Inertial Odometry for Multi-Floor Navigation under Elevator-Induced Non-Inertial Motion},
   author={Zhang, Yifan and Huang, Yudong and Zhang, Yuchong and Li, Changze and Liu, Haoran and Yang, Ming and Qin, Tong},
   journal={arXiv preprint arXiv:2605.24495},

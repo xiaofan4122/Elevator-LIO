@@ -284,7 +284,7 @@ The `temp` directory stores key data records from the current run.
 If you use this software or dataset, please cite the Elevator-LIO paper:
 
 ```bibtex
-@article{zhang2026elevator,
+@article{zhang2026elevatorlio,
   title={Elevator-LIO: Robust LiDAR-Inertial Odometry for Multi-Floor Navigation under Elevator-Induced Non-Inertial Motion},
   author={Zhang, Yifan and Huang, Yudong and Zhang, Yuchong and Li, Changze and Liu, Haoran and Yang, Ming and Qin, Tong},
   journal={arXiv preprint arXiv:2605.24495},
