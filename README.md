@@ -2,6 +2,8 @@
 
 [中文](README.md) | [English](README_en.md)
 
+作者：Yifan Zhang, Yudong Huang, Yuchong Zhang, Changze Li, Haoran Liu, Ming Yang, Tong Qin*
+
 Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里程计。主要测试平台为 Livox MID-360，同时支持其他雷达如 Ouster、Velodyne、XT32 等，但除MID360外尚未经过大规模测试。
 
 
@@ -32,6 +34,11 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 - **计划中**：ROS 2 源码发布。
 - **计划中**：更多数据集发布，包括更多带图像的完整序列。
 - **计划中**：手持采集平台软硬件源码与文档公开。
+
+## 支持工作
+
+- [SCAN-Planner](https://github.com/wuyi2121/SCAN-Planner)
+- [TravExplorer](https://github.com/wuyi2121/TravExplorer)
 
 ## 场景展示
 
