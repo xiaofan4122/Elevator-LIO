@@ -37,7 +37,7 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 
 ## 支持工作
 
-Elevator-LIO 为以下工作提供定位支持：
+欢迎参观课题组其他工作，Elevator-LIO 为以下工作提供了定位支持：
 
 - [SCAN-Planner](https://github.com/wuyi2121/SCAN-Planner)：面向路线引导长距离四足导航的空间碰撞感知局部规划器，可为自主探索、视觉语言导航等上层任务提供底层规划基础。
 - [TravExplorer](https://github.com/wuyi2121/TravExplorer)：面向跨楼层具身探索的可通行性驱动 3D 规划系统，支持单楼层与跨楼层目标导航。

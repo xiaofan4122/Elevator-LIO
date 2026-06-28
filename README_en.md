@@ -35,7 +35,7 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
 
 ## Supporting Works
 
-Elevator-LIO provides localization support for the following works:
+Please also check out other works from our group. Elevator-LIO provides localization support for the following works:
 
 - [SCAN-Planner](https://github.com/wuyi2121/SCAN-Planner): a spatial collision-aware local planner for route-guided long-range quadruped navigation, providing a low-level planning foundation for tasks such as autonomous exploration and vision-language navigation.
 - [TravExplorer](https://github.com/wuyi2121/TravExplorer): a traversability-aware 3D planning system for cross-floor embodied exploration, supporting object navigation in both single-floor and cross-floor scenarios.
