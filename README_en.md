@@ -2,6 +2,8 @@
 
 [Chinese](README.md) | [English](README_en.md)
 
+Authors: Yifan Zhang, Yudong Huang, Yuchong Zhang, Changze Li, Haoran Liu, Ming Yang, Tong Qin*
+
 Elevator-LIO is a LiDAR-inertial odometry system for multi-floor navigation under elevator-induced non-inertial motion. The main test platform is Livox MID-360, and the code also supports LiDARs such as Ouster, Velodyne, and XT32, but LiDARs other than MID-360 have not yet been tested at large scale.
 
 [![Project Page](https://img.shields.io/badge/Project-Page-blue)](https://xiaofan4122.github.io/Elevator_LIO_Page/)
@@ -30,6 +32,13 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
 - **Planned**: ROS 2 source code release.
 - **Planned**: More dataset releases, including additional complete sequences with images.
 - **Planned**: Source code and documentation for the handheld data-collection platform.
+
+## Supporting Works
+
+Elevator-LIO provides localization support for the following works:
+
+- [SCAN-Planner](https://github.com/wuyi2121/SCAN-Planner): a spatial collision-aware local planner for route-guided long-range quadruped navigation, providing a low-level planning foundation for tasks such as autonomous exploration and vision-language navigation.
+- [TravExplorer](https://github.com/wuyi2121/TravExplorer): a traversability-aware 3D planning system for cross-floor embodied exploration, supporting object navigation in both single-floor and cross-floor scenarios.
 
 ## Scenarios
 
