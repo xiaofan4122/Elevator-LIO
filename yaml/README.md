@@ -541,7 +541,7 @@ elevator:
   zupt:
     enable: true
     waiting:
-      enable: true
+      enable: false
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -563,6 +563,7 @@ ZUPT 是零速更新，用于在设备确定静止时约束速度漂移。
 
 - `mapping.yaml`：`zupt.enable: true`。
 - `relocation.yaml`：`zupt.enable: false`。
+- 两者的 `zupt.waiting.enable` 均为 `false`；建图配置仍保留停梯和退出时的 ZUPT。
 
 如果使用 Bag Runner 分析电梯总高度 `Total Z`，还应开启日志配置中的 `log.file.elevator_zupt`。算法 ZUPT 开关和 ZUPT 文件日志开关作用不同：前者控制状态更新，后者控制是否把事件写入分析日志。
 
@@ -605,7 +606,7 @@ elevator:
 
 程序会把 `min_information_ratio` 和 `min_abs_normal_z` 限制在 `[0, 1]`；迭代次数和最少有效点数至少为 `1`。无效的非正距离或收敛阈值会回退到代码中的安全默认值，但实际使用时仍应在 YAML 中填写合理参数。
 
-该功能依赖已有地图。`relocation.yaml` 默认开启，`mapping.yaml` 默认关闭。
+该功能依赖已有地图。`relocation.yaml` 和 `mapping.yaml` 均默认关闭，需要时可手动开启。
 
 ### 10.6 退出后重建地图
 
@@ -997,7 +998,7 @@ visualize:
 | `pub.lidar_frequency` | `10.0` | `10.0` |
 | `elevator.door_detector.filter_percent` | `0.06` | `0.03` |
 | `elevator.zupt.enable` | `true` | `false` |
-| `elevator.exit_icp_z.enable` | `false` | `true` |
+| `elevator.exit_icp_z.enable` | `false` | `false` |
 
 其余参数虽然当前多数相同，但两份 YAML 是独立文件，后续修改不会自动同步。
 
@@ -1135,3 +1136,36 @@ log:
 4. 使用短 bag 运行，检查点云、里程计和 TF。
 5. 检查本次运行日志目录是否生成预期文件。
 6. 修改电梯或估计器门限后，用固定数据集进行前后对比，不要只根据单次 RViz 外观判断效果。
+
+## 数据集预设与估计器参数
+
+除通用建图和重定位配置外，还提供以下数据集预设：
+
+| 根配置 | 传感器 | 运行预设 |
+|---|---|---|
+| `hilti2022_root_config.yaml` | Hesai XT32 + Alphasense IMU | `mapping_nodoor.yaml`，关闭自动入口检测 |
+| `hilti2023_root_config.yaml` | Hesai XT32 + Alphasense IMU | 同上 |
+| `m2dgr_root_config.yaml` | Velodyne VLP-32C + Handsfree A9 IMU | `mapping.yaml` |
+| `m3dgr_root_config.yaml` | Livox MID-360 + 内置IMU | `m3dgr_mapping.yaml` |
+
+Hilti 预设关闭自动入口检测，保留手动电梯服务；M3DGR 预设关闭地图文件保存，加速度输入噪声方差设为 `1e-2`，其他传感器仍使用各自配置。外参对应数据集的传感器安装，请勿直接用于其他硬件。
+
+| 参数 | 默认值 | 含义 |
+|---|---|---|
+| `estimator.lidar_ieskf.refresh_residual` | `true` | 固定近邻时也按当前位姿重算点面残差；`false`保留旧残差复用行为 |
+| `estimator.imu_input_noise.acc_variance` | `1e-4` | 连续时间加速度输入过程噪声方差，传播时乘`dt` |
+| `estimator.imu_input_noise.gyro_variance` | `1e-5` | 连续时间陀螺输入过程噪声方差 |
+| `elevator.door_detector.accumulate.enable` | `true` | 使用时间窗而非单个LiDAR消息计算距离分位数 |
+| `elevator.door_detector.accumulate.window_s` | `0.1` | 按数据时间累积的窗口长度；快照不被后续去畸变改写 |
+| `elevator.exit_cov_jacobian.enable` | `true` | 对`p_z <- p_z + z`执行`P <- J P J^T`后再清理电梯状态；`false`为旧清块方式 |
+| `elevator.zupt.waiting.enable` | `false` | 等待阶段周期性更新；正常停梯/退出约束由原总开关控制 |
+| `elevator.exit_icp_z.enable` | `false` | 可选退出高度配准，不属于默认路径 |
+
+噪声方差与窗口长度必须为有限正数；非法值会在启动时拒绝。上述参数不改变状态维度、发布话题、消息类型或外参含义。
+
+ROS1/ROS2原有启动入口都可选新根配置，例如：
+
+```bash
+roslaunch lio start.launch config_path:=m3dgr_root_config.yaml
+ros2 launch lio start_ros2.launch.py config_path:=m3dgr_root_config.yaml
+```

@@ -32,6 +32,7 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 - **2026-06-22**：发布 [rosbag 管理器视频](https://www.bilibili.com/video/BV1n3jt64Eoi/?share_source=copy_web&vd_source=392db04838f1edf7d12e58a3d68775d8)，该工具随 Elevator-LIO 一同开源。
 - **2026-06-26**：ROS 1 源码发布。
 - **2026-07-29**：正式发布 ROS 2 Humble 支持；同一套源码兼容 ROS 1 Noetic 与 ROS 2 Humble。
+- **2026-11-09**：修复已知 bug，优化在 LiDAR 退化场景下的性能；新增数据集参数预设，见 [配置说明](yaml/README.md#数据集预设与估计器参数)。
 - **计划中**：更多数据集发布，包括更多带图像的完整序列。
 - **计划中**：手持采集平台软硬件源码与文档公开。
 
@@ -305,7 +306,7 @@ elevator:
   zupt:
     enable: true # 电梯相关 ZUPT 总开关
     waiting:
-      enable: true # 进入电梯后的等待阶段是否周期性触发 ZUPT
+      enable: false # 进入电梯后的等待阶段是否周期性触发 ZUPT
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -314,7 +315,7 @@ elevator:
 ```
 
 > [!WARNING]
-> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。重定位配置中默认开启 `exit_icp_z.enable`，建图配置中默认关闭，详细参数见 [yaml/README.md](yaml/README.md)。
+> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。建图和重定位配置中均默认关闭 `exit_icp_z.enable`，需要时可手动开启，详细参数见 [yaml/README.md](yaml/README.md)。
 
 - **重定位设置**，启用重定位时记得修改参考地图文件
 

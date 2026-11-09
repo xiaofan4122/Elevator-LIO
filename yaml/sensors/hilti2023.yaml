@@ -1,0 +1,20 @@
+# HILTI2023: Hesai PandarXT-32 + Alphasense IMU. LiDAR-in-IMU extrinsics as in the FAST-LIO/FAST-LIVO2 Hilti configs.
+lidar_type: 4 # Livox = 1, Ouster = 2, Velodyne = 3, XT32 = 4
+
+offset:
+  imu_t_lidar: [-0.006730146149038548, -0.006897049862999071, 0.049898628062256645]
+  imu_R_lidar:
+    - [0.006609639848469365, -0.9999773650294649, 0.0012578115132016717]
+    - [-0.9999762249571927, -0.006612093869054189, -0.0019569708811106104]
+    - [0.001965243352927244, -0.0012448467359610184, -0.9999972940839232]
+  lidar_t_body: [0.0, 0.0, 0.0]
+  lidar_R_body:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+
+topic_sub:
+  lidar_topic_name: "/hesai/pandar"
+  imu_topic_name: "/alphasense/imu"
+  wheel_topic_name: "/wheel_info"
+  elevator_flag_topic_name: "/LIO/set_elevator_flag"

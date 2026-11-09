@@ -1,0 +1,3 @@
+sensor_config: sensors/m2dgr_vlp32.yaml
+runtime_config: runtime/mapping.yaml
+logging_config: logging/default.yaml

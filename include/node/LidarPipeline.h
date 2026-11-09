@@ -50,7 +50,7 @@ private:
     bool dequeueFrame(FrameData& out);
     void initAdaptiveVoxel();
     void updateAdaptiveConfig(double end_time);
-    void applyVoxelFilter(const PointCloudXYZI::Ptr& in, PointCloudXYZI::Ptr& out, double blind_dist);
+    void applyVoxelFilter(const PointCloudXYZI::Ptr& in, PointCloudXYZI::Ptr& out, double blind_dist, double voxel_size = -1.0);
     bool handleFirstLidarInit(const FrameData& frame);
     bool handlePostElevatorRebuild(const FrameData& frame);
     void resolveFrameState(const FrameData& frame, State& out_state, bool& out_in_elevator);
@@ -89,6 +89,8 @@ private:
     double smoothed_lidar_dt_for_adaptive_ = 0.0;
     bool adaptive_dt_warmed_up_ = false;
 
+    // Detector input is stored before the in-place deskew mutates a scan.
+    std::deque<FrameData> door_detector_window_;
     bool first_lidar_ = true;
     int init_lidar_accum_count_ = 0;
 

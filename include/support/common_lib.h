@@ -444,6 +444,12 @@ extern string odom_imu_topic_name; // imu位姿的话题名
 extern string odom_vehicle_topic_name; // body位姿的话题名
 extern string lidar_update_mode; // lidar更新模式: pose6 / full21
 extern bool online_gravity_estimation_enable; // 是否在线估计重力加速度状态
+extern double imu_input_acc_noise_variance;
+extern double imu_input_gyro_noise_variance;
+extern bool lidar_ieskf_refresh_residual;
+extern bool elevator_exit_cov_jacobian_enable;
+extern bool elevator_door_accumulate_enable;
+extern double elevator_door_accumulate_window_s;
 extern int lidar_ieskf_max_iterations;
 extern double lidar_ieskf_converge_rot_rad;
 extern double lidar_ieskf_converge_pos_m;

@@ -97,7 +97,7 @@ void LidarPipeline::updateAdaptiveConfig(double end_time) {
 
 void LidarPipeline::applyVoxelFilter(const PointCloudXYZI::Ptr& in,
                                       PointCloudXYZI::Ptr& out,
-                                      double blind_dist) {
+                                      double blind_dist, double voxel_size) {
     out->clear();
     if (!in || in->empty()) return;
     blind_filtered_->clear();
@@ -109,7 +109,8 @@ void LidarPipeline::applyVoxelFilter(const PointCloudXYZI::Ptr& in,
         blind_filtered_->points.push_back(pt);
     }
     if (blind_filtered_->empty()) return;
-    uniform_voxel_.setLeafSize(current_voxel_, current_voxel_, current_voxel_);
+    const float leaf = static_cast<float>(voxel_size > 0.0 ? voxel_size : current_voxel_);
+    uniform_voxel_.setLeafSize(leaf, leaf, leaf);
     uniform_voxel_.setInputCloud(blind_filtered_);
     uniform_voxel_.filter(*out);
 }
@@ -145,7 +146,7 @@ bool LidarPipeline::handleFirstLidarInit(const FrameData& frame) {
     }
 
     ikdtree.set_downsample_param(min_filter_size);
-    applyVoxelFilter(cloud_init_accum_lidar_, cloud_init_lidar_, blind);
+    applyVoxelFilter(cloud_init_accum_lidar_, cloud_init_lidar_, blind, min_filter_size);
     cloud_init_world_ = estimator_->transLidar2World(*cloud_init_lidar_);
     ikd_map_->add(cloud_init_world_);
     std::cout << "[LidarPipeline] Build Map Model with "
@@ -203,9 +204,37 @@ bool LidarPipeline::handlePostElevatorRebuild(const FrameData& frame) {
 
 void LidarPipeline::resolveFrameState(const FrameData& frame, State& out_state, bool& out_in_elevator) {
     imu_process_.get_state_at_t(out_state, frame.end_time);
-    imu_process_.elev_process.processDoorDetector(
-        *frame.raw_cloud, frame.end_time, out_state,
-        FSM::current_state == FSM::State::LidarProcess);
+    if (!elevator_door_accumulate_enable) {
+        door_detector_window_.clear();
+        imu_process_.elev_process.processDoorDetector(
+            *frame.raw_cloud, frame.end_time, out_state,
+            FSM::current_state == FSM::State::LidarProcess);
+    } else if (!out_state.in_elevator) {
+        FrameData snapshot = frame;
+        snapshot.raw_cloud.reset(new PointCloudXYZI(*frame.raw_cloud));
+        door_detector_window_.push_back(std::move(snapshot));
+        constexpr double tolerance = 1e-3;
+        while (door_detector_window_.size() > 1 &&
+               frame.end_time - door_detector_window_[1].base_time >=
+                   elevator_door_accumulate_window_s - tolerance) {
+            door_detector_window_.pop_front();
+        }
+        if (frame.end_time - door_detector_window_.front().base_time >=
+                elevator_door_accumulate_window_s - tolerance) {
+            PointCloudXYZI accumulated;
+            for (const auto& sample : door_detector_window_) {
+                accumulated.points.insert(accumulated.points.end(),
+                    sample.raw_cloud->points.begin(), sample.raw_cloud->points.end());
+            }
+            // Ranges stay in each scan's own sensor frame. Detector input is
+            // independent of estimated poses and uses a fixed data-time span.
+            imu_process_.elev_process.processDoorDetector(
+                accumulated, frame.end_time, out_state,
+                FSM::current_state == FSM::State::LidarProcess);
+        }
+    } else {
+        door_detector_window_.clear();
+    }
     out_in_elevator = out_state.in_elevator;
 }
 
@@ -253,9 +282,14 @@ bool LidarPipeline::undistortFrame(const FrameData& frame, State& lidar_end_stat
 // ===================== Step 5: Downsampling =====================
 
 void LidarPipeline::downsampleFrame(PointCloudXYZI::Ptr& cloud) {
+    if (!cloud) {
+        downsampled_cloud_->clear();
+        return;
+    }
     const std::size_t points_before = cloud->points.size();
+    const double voxel_used = current_voxel_;
+    applyVoxelFilter(cloud, downsampled_cloud_, blind);
     if (cloud->points.size() > 10) {
-        applyVoxelFilter(cloud, downsampled_cloud_, blind);
         static double last_downsample_print_time = -1.0;
         if (last_downsample_print_time < 0.0 || (lidar_end_time - last_downsample_print_time) > 5.0) {
             std::cout << "[LidarPipeline] downsample: in=" << cloud->points.size()
@@ -265,7 +299,7 @@ void LidarPipeline::downsampleFrame(PointCloudXYZI::Ptr& cloud) {
     } else {
         static double last_no_downsample_print_time = -1.0;
         if (last_no_downsample_print_time < 0.0 || (lidar_end_time - last_no_downsample_print_time) > 5.0) {
-            LOG_INFO(Map, "[LidarPipeline] no downsample, reuse: " << downsampled_cloud_->points.size());
+            LOG_INFO(Map, "[LidarPipeline] sparse scan: " << downsampled_cloud_->points.size());
             last_no_downsample_print_time = lidar_end_time;
         }
     }
@@ -278,7 +312,7 @@ void LidarPipeline::downsampleFrame(PointCloudXYZI::Ptr& cloud) {
     if (log_save_enable) {
         std::ostringstream oss;
         oss << std::fixed << std::setprecision(6)
-            << lidar_end_time << "," << current_voxel_ << ","
+            << lidar_end_time << "," << voxel_used << ","
             << points_after << "," << points_before << ","
             << current_target_points_per_frame_ << ","
             << smoothed_lidar_dt_for_adaptive_;
@@ -345,6 +379,13 @@ void LidarPipeline::handleElevatorExit(State& post_state) {
 
     const double delta_z_commit = post_state.z;
     post_state.p(2) += delta_z_commit;
+    if (elevator_exit_cov_jacobian_enable) {
+        // Re-anchor p_z <- p_z + z before either reset clears the cross terms:
+        // P <- J P J^T, J = I + e_pz e_z^T (the revised paper's reset).
+        const int pz = StateIndex::P + 2;
+        post_state.P.row(pz) += post_state.P.row(StateIndex::Z);
+        post_state.P.col(pz) += post_state.P.col(StateIndex::Z);
+    }
 
     if (elevator_exit_icp_z_enable) {
         const EskfEstimator::ZIcpResult icp_result =
