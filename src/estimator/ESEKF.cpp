@@ -10,10 +10,9 @@
 #include "support/type.h"
 #include "omp.h"
 
-static Eigen::Vector3d SO3Log(const Eigen::Matrix3d&SO3 ){
-    double theta = (SO3.trace()>3-1e6)?0:acos((SO3.trace()-1)/2);
-    Eigen::Vector3d so3(SO3(2,1)-SO3(1,2),SO3(0,2)-SO3(2,0),SO3(1,0)-SO3(0,1));
-    return fabs(theta)<0.001?(0.5*so3):(0.5*theta/sin(theta)*so3);
+static Eigen::Vector3d SO3Log(const Eigen::Matrix3d& rotation) {
+    const Eigen::AngleAxisd angle_axis(rotation);
+    return angle_axis.angle() * angle_axis.axis();
 }
 
 
@@ -1236,6 +1235,30 @@ void EskfEstimator::evaluatePointMatches(const State &state, PointCloudXYZI &clo
     }
 
     if (!kd_research_en) {
+        if (!lidar_ieskf_refresh_residual) return;
+        // Reuse planes and neighbors, but linearize their residuals at the
+        // current iterate, consistently with the Jacobian below.
+        effective_indices_.clear();
+        reject_indices_.clear();
+        for (size_t i = 0; i < point_num; ++i) {
+            if (!is_effect_point_[i]) continue;
+            const double pd = norm_vector_[i].norm_vec.dot(point_world_cache_[i])
+                              + norm_vector_[i].plane_d;
+            bool accept = std::isfinite(pd);
+            if (accept && useFastLioScoreGate()) {
+                accept = 1.0 - 0.9 * std::fabs(pd) /
+                        std::sqrt(std::max(point_lidar_range_[i], 1e-6)) > ikdtree_score_min;
+            } else if (accept) {
+                accept = std::fabs(pd) < ikdtree_match_thresh_base +
+                         ikdtree_match_thresh_scale * point_lidar_range_[i];
+            }
+            if (accept) {
+                norm_vector_[i].d = pd;
+                effective_indices_.push_back(static_cast<int>(i));
+            } else {
+                is_effect_point_[i] = 0;
+            }
+        }
         return;
     }
 
@@ -1282,6 +1305,7 @@ void EskfEstimator::evaluatePointMatches(const State &state, PointCloudXYZI &clo
             norm_vector_[i].norm_vec = pabcd.block<3,1>(0,0);
             norm_vector_[i].point_imu_xyz = point_imu_vec_[i];
             norm_vector_[i].d = pd;
+            norm_vector_[i].plane_d = pabcd(3);
             is_effect_point_[i] = 1;
         }
     }

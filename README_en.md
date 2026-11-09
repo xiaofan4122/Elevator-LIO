@@ -388,3 +388,9 @@ Original Elevator-LIO code is released under the [GNU General Public License v2.
 Independent MIT components retain their file-level MIT SPDX identifiers. Incorporated third-party code,
 including ikd-Tree, retains its upstream GPLv2 notice; provenance and local modifications are documented in
 [THIRD_PARTY.md](include/ikd_tree/THIRD_PARTY.md).
+
+## Revision algorithms and parameters
+
+This update retains the public 21-state filter and ROS1/ROS2 interfaces. It refreshes IESKF residuals at the current iterate while reusing correspondences, transfers covariance when committing elevator displacement, evaluates door ranges over a fixed data-time window, and fixes Velodyne and IMU endpoint timing.
+
+Periodic waiting-phase ZUPT and exit-height ICP are off by default; normal stop/exit constraints remain enabled. Input IMU noise keeps its established defaults and can be configured in YAML. Compact Hilti, M2DGR and M3DGR parameter entries are documented in [yaml/README.md](yaml/README.md). Later IMU-group, normal-assisted mapping and geometry-sampling experiments are not included.

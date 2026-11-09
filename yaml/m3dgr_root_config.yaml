@@ -1,0 +1,3 @@
+sensor_config: sensors/m3dgr_mid360.yaml
+runtime_config: runtime/m3dgr_mapping.yaml
+logging_config: logging/default.yaml

@@ -1135,3 +1135,36 @@ log:
 4. 使用短 bag 运行，检查点云、里程计和 TF。
 5. 检查本次运行日志目录是否生成预期文件。
 6. 修改电梯或估计器门限后，用固定数据集进行前后对比，不要只根据单次 RViz 外观判断效果。
+
+## 返修参数入口
+
+保留原有`mapping.yaml`和`relocation.yaml`，只新增两个共享运行预设和四组传感器入口，不附带批处理/下载/评估脚本：
+
+| 根配置 | 传感器 | 运行预设 |
+|---|---|---|
+| `hilti2022_root_config.yaml` | Hesai XT32 + Alphasense IMU | `mapping_nodoor.yaml`，关闭自动入口检测 |
+| `hilti2023_root_config.yaml` | Hesai XT32 + Alphasense IMU | 同上 |
+| `m2dgr_root_config.yaml` | Velodyne VLP-32C + Handsfree A9 IMU | `mapping.yaml` |
+| `m3dgr_root_config.yaml` | Livox MID-360 + 内置IMU | `m3dgr_mapping.yaml` |
+
+这些是数据集传感器/参数入口，不表示本次更新已重新复现论文全部序列。Hilti预设仅关闭自动入口，保留手动电梯服务；M3DGR预设关闭地图文件保存，并显式使用已在Elevator01检查过的加速度输入噪声`1e-2`，不将其改为所有传感器的全局默认。外参不应直接用于其他硬件安装。
+
+| 参数 | 默认值 | 含义 |
+|---|---|---|
+| `estimator.lidar_ieskf.refresh_residual` | `true` | 固定近邻时也按当前位姿重算点面残差；`false`保留旧残差复用行为 |
+| `estimator.imu_input_noise.acc_variance` | `1e-4` | 连续时间加速度输入过程噪声方差，传播时乘`dt` |
+| `estimator.imu_input_noise.gyro_variance` | `1e-5` | 连续时间陀螺输入过程噪声方差 |
+| `elevator.door_detector.accumulate.enable` | `true` | 使用时间窗而非单个LiDAR消息计算距离分位数 |
+| `elevator.door_detector.accumulate.window_s` | `0.1` | 按数据时间累积的窗口长度；快照不被后续去畸变改写 |
+| `elevator.exit_cov_jacobian.enable` | `true` | 对`p_z <- p_z + z`执行`P <- J P J^T`后再清理电梯状态；`false`为旧清块方式 |
+| `elevator.zupt.waiting.enable` | `false` | 等待阶段周期性更新；正常停梯/退出约束由原总开关控制 |
+| `elevator.exit_icp_z.enable` | `false` | 可选退出高度配准，不属于默认路径 |
+
+噪声方差与窗口长度必须为有限正数；非法值会在启动时拒绝。2D/3D协方差变换与LiDAR残差刷新是不同操作，不应混淆。上述开关只提供有针对性的兼容/对照，不改变状态维度、发布话题、消息类型或外参含义。
+
+ROS1/ROS2原有启动入口都可选新根配置，例如：
+
+```bash
+roslaunch lio start.launch config_path:=m3dgr_root_config.yaml
+ros2 launch lio start_ros2.launch.py config_path:=m3dgr_root_config.yaml
+```

@@ -56,6 +56,9 @@ elevator:
     time_threshold: 2.0 # 封闭状态持续多久后触发电梯模式 [s]
     filter_percent: 0.06 # 计算最远距离时忽略最远端点的比例
     cooldown_time: 5.0 # 两次自动触发之间的冷却时间 [s]
+    accumulate:
+      enable: true # evaluate door ranges over a fixed data-time window, not one packet
+      window_s: 0.1
   # Beta 功能 —— 施加物体相对电梯没有z方向运动的先验，主要解决某些雷达水平安装，激光点完全没有z方向约束的情况，但仅适用于在电梯无上下相对运动的情况
   strong_prior_enable: false # 电梯模式下是否将 IMU 竖直加速度强先验解释为电梯加速度 az
   strong_prior_acc_var: 0.001 # 强先验 EKF 量测方差 [(m/s^2)^2]，越小越信任 IMU 竖直加速度
@@ -63,11 +66,11 @@ elevator:
     enable: true # 电梯相关 ZUPT 总开关
     # Beta 功能 —— 在进入电梯模式后周期性触发ZUPT，直到电梯运动才停止更新，解决在电梯内长时间停留但电梯实际没有启动的情况
     waiting:
-      enable: true # 是否启用等待阶段的周期性 ZUPT
+      enable: false # 是否启用等待阶段的周期性 ZUPT
       period_s: 3.0 # 等待阶段 ZUPT 检测周期 [s]
       vz_abs_thresh: 0.1 # 触发等待 ZUPT 的 |vz| 阈值
       az_abs_thresh: 0.1 # 触发等待 ZUPT 的 |az| 阈值
-  # Beta 功能 —— 到底新楼层时约束当前帧与历史地图重合，在重定位模式下默认开启，可以增强稳定性
+  # Beta 功能 —— 到底新楼层时约束当前帧与历史地图重合，默认关闭，可以增强稳定性
   exit_icp_z:
     enable: false # 到达新楼层并完成退出 ZUPT 后，使用当前帧与已有 ikd-tree 地图做仅 z 方向 ICP
     max_correction_m: 0.3 # ICP 的总 z 修正必须严格小于该值才接受 [m]
@@ -78,6 +81,8 @@ elevator:
     min_abs_normal_z: 0.7 # 只有接近水平面的对应点参与 z 求解
     max_residual_m: 0.3 # ICP 点面对应的最大残差 [m]
     converge_m: 1.0e-3 # 单次 z 增量收敛阈值 [m]
+  exit_cov_jacobian:
+    enable: true # P <- J P J^T before resetting the elevator state; false reproduces the legacy reset
   rebuild_map_on_exit:
     enable: false # 是否在退出电梯后清空旧地图并重建
     frames: 5 # 重建地图累计的 LiDAR 帧数
@@ -90,7 +95,11 @@ wheel:
 estimator:
   lidar_update_mode: "pose6" # pose6 / full21；LiDAR残差仅对姿态和位置有直接雅可比，pose6 只构建6维量测矩阵，但与 full21 结果一致
   online_gravity_estimation_enable: false # 是否在线估计重力；false 时固定使用初始化重力
+  imu_input_noise:
+    acc_variance: 1.0e-4 # continuous-time input acceleration noise; existing default
+    gyro_variance: 1.0e-5 # continuous-time input gyroscope noise; existing default
   lidar_ieskf:
+    refresh_residual: true # re-evaluate cached planes at the current IESKF iterate
     max_iterations: 4 # 每帧最大迭代次数
     converge_rot_rad: 1.0e-3 # 旋转收敛阈值 [rad]
     converge_pos_m: 1.0e-3 # 位置收敛阈值 [m]

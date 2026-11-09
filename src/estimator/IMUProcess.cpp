@@ -228,6 +228,8 @@ void IMUProcess::set_init_state(State state_init ,double time_stamp) {
     std::fill(imu_gyr_buffer.begin(),  imu_gyr_buffer.end(),  Eigen::Vector3d::Zero());
 
     /* ---------- 过程噪声 Q (12×12) ---------- */
+    ACC_NOISE_VAR = imu_input_acc_noise_variance;
+    GYRO_NOISE_VAR = imu_input_gyro_noise_variance;
     Q_.setZero(StateNoiseIndex::NOISE_TOTAL,StateNoiseIndex::NOISE_TOTAL);
     Q_.block<3,3>(StateNoiseIndex::ACC_NOISE,        StateNoiseIndex::ACC_NOISE)         = ACC_NOISE_VAR        * Eigen::Matrix3d::Identity();
     Q_.block<3,3>(StateNoiseIndex::GYRO_NOISE,       StateNoiseIndex::GYRO_NOISE)        = GYRO_NOISE_VAR       * Eigen::Matrix3d::Identity();
@@ -412,6 +414,8 @@ void IMUProcess::initialize(double t0 )
     std::fill(imu_gyr_buffer.begin(),  imu_gyr_buffer.end(),  Eigen::Vector3d::Zero());
 
     /* ---------- 2. 过程噪声 Q (12×12) ---------- */
+    ACC_NOISE_VAR = imu_input_acc_noise_variance;
+    GYRO_NOISE_VAR = imu_input_gyro_noise_variance;
     Q_.setZero(StateNoiseIndex::NOISE_TOTAL,StateNoiseIndex::NOISE_TOTAL);
     Q_.block<3,3>(StateNoiseIndex::ACC_NOISE,        StateNoiseIndex::ACC_NOISE)         = ACC_NOISE_VAR        * Eigen::Matrix3d::Identity();
     Q_.block<3,3>(StateNoiseIndex::GYRO_NOISE,       StateNoiseIndex::GYRO_NOISE)        = GYRO_NOISE_VAR       * Eigen::Matrix3d::Identity();
@@ -691,7 +695,7 @@ void IMUProcess::get_imu_pose_from_t1_to_t2(std::vector<Pose> &IMU_Pose_vec, dou
     replace = std::abs(time_buffer[next_index] - time_stamp_2) < 1E-6;
 
     if (replace) {
-        IMU_Pose_vec.push_back(get_pose(next_index,time_stamp_2));
+        IMU_Pose_vec.push_back(get_pose(next_index,time_stamp_1));
     }else {
         // 多插值一个结束状态
         double ratio = (time_stamp_2 - time_buffer[right_index]) /
