@@ -541,7 +541,7 @@ elevator:
   zupt:
     enable: true
     waiting:
-      enable: true
+      enable: false
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -563,6 +563,7 @@ ZUPT 是零速更新，用于在设备确定静止时约束速度漂移。
 
 - `mapping.yaml`：`zupt.enable: true`。
 - `relocation.yaml`：`zupt.enable: false`。
+- 两者的 `zupt.waiting.enable` 均为 `false`；建图配置仍保留停梯和退出时的 ZUPT。
 
 如果使用 Bag Runner 分析电梯总高度 `Total Z`，还应开启日志配置中的 `log.file.elevator_zupt`。算法 ZUPT 开关和 ZUPT 文件日志开关作用不同：前者控制状态更新，后者控制是否把事件写入分析日志。
 
@@ -605,7 +606,7 @@ elevator:
 
 程序会把 `min_information_ratio` 和 `min_abs_normal_z` 限制在 `[0, 1]`；迭代次数和最少有效点数至少为 `1`。无效的非正距离或收敛阈值会回退到代码中的安全默认值，但实际使用时仍应在 YAML 中填写合理参数。
 
-该功能依赖已有地图。`relocation.yaml` 默认开启，`mapping.yaml` 默认关闭。
+该功能依赖已有地图。`relocation.yaml` 和 `mapping.yaml` 均默认关闭，需要时可手动开启。
 
 ### 10.6 退出后重建地图
 
@@ -997,7 +998,7 @@ visualize:
 | `pub.lidar_frequency` | `10.0` | `10.0` |
 | `elevator.door_detector.filter_percent` | `0.06` | `0.03` |
 | `elevator.zupt.enable` | `true` | `false` |
-| `elevator.exit_icp_z.enable` | `false` | `true` |
+| `elevator.exit_icp_z.enable` | `false` | `false` |
 
 其余参数虽然当前多数相同，但两份 YAML 是独立文件，后续修改不会自动同步。
 
@@ -1136,9 +1137,9 @@ log:
 5. 检查本次运行日志目录是否生成预期文件。
 6. 修改电梯或估计器门限后，用固定数据集进行前后对比，不要只根据单次 RViz 外观判断效果。
 
-## 返修参数入口
+## 数据集预设与估计器参数
 
-保留原有`mapping.yaml`和`relocation.yaml`，只新增两个共享运行预设和四组传感器入口，不附带批处理/下载/评估脚本：
+除通用建图和重定位配置外，还提供以下数据集预设：
 
 | 根配置 | 传感器 | 运行预设 |
 |---|---|---|
@@ -1147,7 +1148,7 @@ log:
 | `m2dgr_root_config.yaml` | Velodyne VLP-32C + Handsfree A9 IMU | `mapping.yaml` |
 | `m3dgr_root_config.yaml` | Livox MID-360 + 内置IMU | `m3dgr_mapping.yaml` |
 
-这些是数据集传感器/参数入口，不表示本次更新已重新复现论文全部序列。Hilti预设仅关闭自动入口，保留手动电梯服务；M3DGR预设关闭地图文件保存，并显式使用已在Elevator01检查过的加速度输入噪声`1e-2`，不将其改为所有传感器的全局默认。外参不应直接用于其他硬件安装。
+Hilti 预设关闭自动入口检测，保留手动电梯服务；M3DGR 预设关闭地图文件保存，加速度输入噪声方差设为 `1e-2`，其他传感器仍使用各自配置。外参对应数据集的传感器安装，请勿直接用于其他硬件。
 
 | 参数 | 默认值 | 含义 |
 |---|---|---|
@@ -1160,7 +1161,7 @@ log:
 | `elevator.zupt.waiting.enable` | `false` | 等待阶段周期性更新；正常停梯/退出约束由原总开关控制 |
 | `elevator.exit_icp_z.enable` | `false` | 可选退出高度配准，不属于默认路径 |
 
-噪声方差与窗口长度必须为有限正数；非法值会在启动时拒绝。2D/3D协方差变换与LiDAR残差刷新是不同操作，不应混淆。上述开关只提供有针对性的兼容/对照，不改变状态维度、发布话题、消息类型或外参含义。
+噪声方差与窗口长度必须为有限正数；非法值会在启动时拒绝。上述参数不改变状态维度、发布话题、消息类型或外参含义。
 
 ROS1/ROS2原有启动入口都可选新根配置，例如：
 

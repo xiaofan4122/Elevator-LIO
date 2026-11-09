@@ -30,6 +30,7 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
 - **2026-06-22**: Published the [rosbag manager video](https://www.bilibili.com/video/BV1n3jt64Eoi/?share_source=copy_web&vd_source=392db04838f1edf7d12e58a3d68775d8); the tool is released together with Elevator-LIO.
 - **2026-06-26**: ROS 1 source code released.
 - **2026-07-29**: ROS 2 Humble support was officially released; the same source tree supports both ROS 1 Noetic and ROS 2 Humble.
+- **2026-11-09**: Fixed known bugs, improved performance in LiDAR-degenerate scenarios, and added dataset parameter presets. See the [configuration guide](yaml/README.md#数据集预设与估计器参数).
 - **Planned**: More dataset releases, including additional complete sequences with images.
 - **Planned**: Source code and documentation for the handheld data-collection platform.
 
@@ -301,7 +302,7 @@ elevator:
   zupt:
     enable: true
     waiting:
-      enable: true
+      enable: false
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -310,7 +311,7 @@ elevator:
 ```
 
 > [!WARNING]
-> Elevator exit detection is relatively stable, but automatic entry detection may be falsely triggered in narrow corridors or other enclosed spaces. You can tune the `door_detector` thresholds for your scene, or publish your own trigger signal; see the topic-triggering commands in the "Elevator Mode" section above. `exit_icp_z.enable` is enabled by default in relocation mode and disabled by default in mapping mode. See [yaml/README.md](yaml/README.md) for all parameters.
+> Elevator exit detection is relatively stable, but automatic entry detection may be falsely triggered in narrow corridors or other enclosed spaces. You can tune the `door_detector` thresholds for your scene, or publish your own trigger signal; see the topic-triggering commands in the "Elevator Mode" section above. `exit_icp_z.enable` is disabled by default in both mapping and relocation modes and can be enabled when needed. See [yaml/README.md](yaml/README.md) for all parameters.
 
 - **Relocation**. When enabling relocation, update the reference map file:
 
@@ -388,9 +389,3 @@ Original Elevator-LIO code is released under the [GNU General Public License v2.
 Independent MIT components retain their file-level MIT SPDX identifiers. Incorporated third-party code,
 including ikd-Tree, retains its upstream GPLv2 notice; provenance and local modifications are documented in
 [THIRD_PARTY.md](include/ikd_tree/THIRD_PARTY.md).
-
-## Revision algorithms and parameters
-
-This update retains the public 21-state filter and ROS1/ROS2 interfaces. It refreshes IESKF residuals at the current iterate while reusing correspondences, transfers covariance when committing elevator displacement, evaluates door ranges over a fixed data-time window, and fixes Velodyne and IMU endpoint timing.
-
-Periodic waiting-phase ZUPT and exit-height ICP are off by default; normal stop/exit constraints remain enabled. Input IMU noise keeps its established defaults and can be configured in YAML. Compact Hilti, M2DGR and M3DGR parameter entries are documented in [yaml/README.md](yaml/README.md). Later IMU-group, normal-assisted mapping and geometry-sampling experiments are not included.

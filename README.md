@@ -23,12 +23,6 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 > [!WARNING]
 > Elevator-LIO 允许机器人在电梯内自由移动，但建议使用 Livox MID-360 这类视场较大的 LiDAR，并采用倾斜安装，以获得尽可能多方向上的几何约束。如果您的 LiDAR 水平安装，且机器人在电梯内基本不会产生上下运动，请将 `yaml/runtime` 中的 `elevator.strong_prior_enable` 设置为 `true`。该选项会将 IMU 垂直方向加速度强约束解释为电梯加速度，使系统在此类安装条件下也能正常工作。
 
-## 返修算法与参数更新
-
-本次保留公开版的21维状态和ROS1/ROS2接口，仅同步核心算法与参数：固定近邻时按当前位姿刷新IESKF残差；退出电梯前执行位置重锚定的协方差变换；按数据时间窗累积门检测输入；修正Velodyne点时间与IMU帧末时间偏移。
-
-默认关闭等待阶段周期性ZUPT和退出高度ICP，保留停梯及退出约束。输入IMU噪声保持原默认量级，可通过YAML显式配置。新增Hilti、M2DGR、M3DGR传感器参数入口，见[yaml/README.md](yaml/README.md#返修参数入口)。本更新不包含后续IMU分组增强、法向辅助建图或几何采样试验。
-
 ## 时间节点
 
 - **2026-05-23**：[arXiv 预印本](https://arxiv.org/abs/2605.24495)公开。
@@ -38,6 +32,7 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 - **2026-06-22**：发布 [rosbag 管理器视频](https://www.bilibili.com/video/BV1n3jt64Eoi/?share_source=copy_web&vd_source=392db04838f1edf7d12e58a3d68775d8)，该工具随 Elevator-LIO 一同开源。
 - **2026-06-26**：ROS 1 源码发布。
 - **2026-07-29**：正式发布 ROS 2 Humble 支持；同一套源码兼容 ROS 1 Noetic 与 ROS 2 Humble。
+- **2026-11-09**：修复已知 bug，优化在 LiDAR 退化场景下的性能；新增数据集参数预设，见 [配置说明](yaml/README.md#数据集预设与估计器参数)。
 - **计划中**：更多数据集发布，包括更多带图像的完整序列。
 - **计划中**：手持采集平台软硬件源码与文档公开。
 
@@ -311,7 +306,7 @@ elevator:
   zupt:
     enable: true # 电梯相关 ZUPT 总开关
     waiting:
-      enable: true # 进入电梯后的等待阶段是否周期性触发 ZUPT
+      enable: false # 进入电梯后的等待阶段是否周期性触发 ZUPT
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -320,7 +315,7 @@ elevator:
 ```
 
 > [!WARNING]
-> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。重定位配置中默认开启 `exit_icp_z.enable`，建图配置中默认关闭，详细参数见 [yaml/README.md](yaml/README.md)。
+> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。建图和重定位配置中均默认关闭 `exit_icp_z.enable`，需要时可手动开启，详细参数见 [yaml/README.md](yaml/README.md)。
 
 - **重定位设置**，启用重定位时记得修改参考地图文件
 
