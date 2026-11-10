@@ -9,11 +9,11 @@
 #include "ikd_tree/IkdNearestQuery.hpp"
 #include "support/type.h"
 #include "omp.h"
+#include <Eigen/Eigenvalues>
 
-static Eigen::Vector3d SO3Log(const Eigen::Matrix3d&SO3 ){
-    double theta = (SO3.trace()>3-1e6)?0:acos((SO3.trace()-1)/2);
-    Eigen::Vector3d so3(SO3(2,1)-SO3(1,2),SO3(0,2)-SO3(2,0),SO3(1,0)-SO3(0,1));
-    return fabs(theta)<0.001?(0.5*so3):(0.5*theta/sin(theta)*so3);
+static Eigen::Vector3d SO3Log(const Eigen::Matrix3d& rotation) {
+    const Eigen::AngleAxisd angle_axis(rotation);
+    return angle_axis.angle() * angle_axis.axis();
 }
 
 
@@ -1189,7 +1189,7 @@ static bool planarFittingAndCheck1(const PointVector & points, Eigen::Vector4d &
 
     // --- 第三轮：几何退化检查 ---
     // 利用 PCA 特性，精准拦截电线杆、边缘线等一维退化结构
-    if (evals[1] < 2.0 * evals[0]) return false;
+    if (!evals.allFinite() || evals[1] <= 1e-8 || evals[1] < 2.0 * evals[0]) return false;
 
     // 输出参数装填
     if (normal.dot(center) > 0) normal = -normal;
@@ -1202,6 +1202,58 @@ static bool planarFittingAndCheck1(const PointVector & points, Eigen::Vector4d &
 
     return true;
 }
+
+// Local registration against the last trusted map. No inertial samples are
+// fabricated and no candidate is inserted into the map before acceptance.
+bool EskfEstimator::recoverPoseAfterGap(const PointCloudXYZI &cloud,
+                                        State &candidate, double &fitness, double &rmse) {
+    const State seed = candidate;
+    if (cloud.empty() || !candidate.p.allFinite() || !candidate.q.coeffs().allFinite()) return false;
+    IkdNearestQuery query;
+    const double gates[] = {1.0, 0.4, 0.15};
+    for (double gate : gates) {
+        for (int iter=0;iter<20;++iter) {
+            Eigen::Matrix<double,6,6> H = Eigen::Matrix<double,6,6>::Zero();
+            Eigen::Matrix<double,6,1> rhs = Eigen::Matrix<double,6,1>::Zero();
+            int count=0;double squared=0;
+            const Eigen::Matrix3d rot=candidate.q.toRotationMatrix();
+            for (const auto &point : cloud.points) {
+                const Eigen::Vector3d pi=imu_R_lidar*Eigen::Vector3d(point.x,point.y,point.z)+imu_t_lidar;
+                const Eigen::Vector3d pw=rot*pi+candidate.p;
+                if (!pw.allFinite()) continue;
+                PointType q; q.x=pw.x();q.y=pw.y();q.z=pw.z();
+                PointVector near;std::vector<float> distances;
+                if (!query.searchKnn(q,8,near,distances) || distances.back()>4.0) continue;
+                Eigen::Vector4d plane;
+                if (!planarFittingAndCheck1(near,plane,0.04)) continue;
+                const Eigen::Vector3d n=plane.head<3>();
+                const double residual=n.dot(pw)+plane(3);
+                if (std::abs(residual)>gate) continue;
+                Eigen::Matrix<double,1,6> row;
+                row.head<3>()=-n.transpose()*rot*skew3d(pi);row.tail<3>()=n.transpose();
+                const double weight=std::min(1.0,0.1/std::max(1e-9,std::abs(residual)));
+                H.noalias()+=weight*row.transpose()*row;
+                rhs.noalias()-=weight*row.transpose()*residual;
+                squared+=residual*residual;++count;
+            }
+            fitness=double(count)/std::max<size_t>(1,cloud.size());
+            rmse=count ? std::sqrt(squared/count):1e9;
+            if (count<100) return false;
+            Eigen::Matrix<double,6,1> scale=H.diagonal().cwiseMax(1e-12).cwiseSqrt().cwiseInverse();
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,6,6>> eig(scale.asDiagonal()*H*scale.asDiagonal());
+            if (eig.info() != Eigen::Success || !eig.eigenvalues().allFinite() ||
+                eig.eigenvalues()(0)<0.005) return false;
+            Eigen::Matrix<double,6,1> dx=H.ldlt().solve(rhs);
+            if (!dx.allFinite() || dx.head<3>().norm()>0.25 || dx.tail<3>().norm()>1.0) return false;
+            candidate.q=(candidate.q*Eigen::Quaterniond(so3Exp(dx.head<3>()))).normalized();
+            candidate.p+=dx.tail<3>();
+            if (dx.norm()<1e-4) break;
+        }
+    }
+    return fitness>0.65 && rmse<0.08 && (candidate.p-seed.p).norm()<3.0 &&
+           Eigen::AngleAxisd(seed.q.inverse()*candidate.q).angle()<0.6;
+}
+
 
 /**
  * Point-LIO's exact five-point plane model.  It solves
@@ -1399,6 +1451,33 @@ void EskfEstimator::evaluatePointMatches(const State &state, PointCloudXYZI &clo
     }
 
     if (!kd_research_en) {
+        if (!lidar_ieskf_refresh_residual) return;
+        // Reuse planes and neighbors, but linearize their residuals at the
+        // current iterate, consistently with the Jacobian below.
+        effective_indices_.clear();
+        reject_indices_.clear();
+        for (size_t i = 0; i < point_num; ++i) {
+            if (!is_effect_point_[i]) continue;
+            const double pd = norm_vector_[i].norm_vec.dot(point_world_cache_[i])
+                              + norm_vector_[i].plane_d;
+            bool accept = std::isfinite(pd);
+            if (accept && usePointLioGate()) {
+                const double p_norm = std::max(point_imu_vec_[i].norm(), 1e-12);
+                accept = p_norm > ikdtree_pointlio_match_s * pd * pd;
+            } else if (accept && useFastLioScoreGate()) {
+                accept = 1.0 - 0.9 * std::fabs(pd) /
+                        std::sqrt(std::max(point_lidar_range_[i], 1e-6)) > ikdtree_score_min;
+            } else if (accept) {
+                accept = std::fabs(pd) < ikdtree_match_thresh_base +
+                         ikdtree_match_thresh_scale * point_lidar_range_[i];
+            }
+            if (accept) {
+                norm_vector_[i].d = pd;
+                effective_indices_.push_back(static_cast<int>(i));
+            } else {
+                is_effect_point_[i] = 0;
+            }
+        }
         return;
     }
 
@@ -1453,6 +1532,7 @@ void EskfEstimator::evaluatePointMatches(const State &state, PointCloudXYZI &clo
             norm_vector_[i].norm_vec = pabcd.block<3,1>(0,0);
             norm_vector_[i].point_imu_xyz = point_imu_vec_[i];
             norm_vector_[i].d = pd;
+            norm_vector_[i].plane_d = pabcd(3);
             is_effect_point_[i] = 1;
         }
     }

@@ -235,7 +235,23 @@ void TopicProcess::receive_points_velodyne(const lio_ros::PointCloud2ConstPtr& m
     double yaw_fp[MAX_LINE_NUM] = {0};     // yaw of first scan point
     double omega_l = 3.61;                 // scan angular velocity, deg/ms for 10 Hz spinning LiDAR
     float time_last[MAX_LINE_NUM] = {0.0}; // last offset time
-    const bool given_offset_time = (pl_orig.points.back().time > 0.0f);
+    // Per-point offset times: the unit is inferred from the span of a 10 Hz scan (about 0.1 s): seconds
+    // (e.g. M2DGR, LIO-SAM convention), milliseconds, or microseconds (FAST-LIO timestamp_unit=2).
+    // Some drivers stamp the scan at its end and store negative offsets; the scan start is then moved to
+    // the earliest point so that all offsets are non-negative.
+    float min_offset = pl_orig.points.front().time, max_offset = min_offset;
+    for (const auto& p : pl_orig.points) {
+        min_offset = std::min(min_offset, p.time);
+        max_offset = std::max(max_offset, p.time);
+    }
+    const float span = max_offset - min_offset;
+    const bool given_offset_time = span > 0.0f;
+    const double time_to_ms = span < 1.0f ? 1000.0 : (span < 1000.0f ? 1.0 : kMicrosecondToMillisecond);
+    if (given_offset_time && min_offset < 0.0f) {
+        timestamp += min_offset * time_to_ms / kSecondToMillisecond;
+    } else {
+        min_offset = 0.0f;
+    }
 
     memset(is_first, true, sizeof(is_first));
 
@@ -254,9 +270,8 @@ void TopicProcess::receive_points_velodyne(const lio_ros::PointCloud2ConstPtr& m
         pt.z = pl_orig.points[i].z;
         pt.intensity = pl_orig.points[i].intensity;
 
-        // FAST-LIO Velodyne config uses timestamp_unit=2, so PointCloud2 time is microseconds.
         if (given_offset_time) {
-            pt.curvature = static_cast<float>(pl_orig.points[i].time * kMicrosecondToMillisecond);
+            pt.curvature = static_cast<float>((pl_orig.points[i].time - min_offset) * time_to_ms);
         } else {
             double yaw_angle = atan2(pt.y, pt.x) * 180.0 / M_PI; // degrees
 
@@ -427,7 +442,7 @@ void TopicProcess::receive_points(const lio_ros::CustomMsgConstPtr& msg)
 
     cloud_topic_count_++;
     double timestamp = get_time_sec(msg->header.stamp);
-    int plsize = msg->point_num;
+    const int plsize = static_cast<int>(std::min<std::size_t>(msg->point_num, msg->points.size()));
     if (plsize <= 1) {
         std::cerr << "[receive_points] too few points\n";
         return;
@@ -480,9 +495,16 @@ void TopicProcess::receive_points(const lio_ros::CustomMsgConstPtr& msg)
         }
     }
 
-    double lidar_end_time = get_time_sec(msg->header.stamp) + msg->points.back().offset_time / 1E9;
+    std::uint32_t max_offset_ns = 0;
+    for (const auto& point : msg->points) {
+        max_offset_ns = std::max(max_offset_ns, point.offset_time);
+    }
+    const double lidar_end_time = timestamp + max_offset_ns * 1e-9;
 
     if (!cloud_xyzi.empty()) {
+        // Livox packets can contain local time reversals between packet groups.
+        // Deskew consumes points in time order; filtering must not shorten the scan.
+        sortByPointOffsetTime(cloud_xyzi);
         SharedBuffers::LidarFrame frame;
         frame.cloud.reset(new PointCloudXYZI(std::move(cloud_xyzi)));
         frame.base_time = timestamp;

@@ -58,11 +58,14 @@ elevator:
   enable: true # 电梯模式总开关；关闭后忽略自动检测和手动触发
   self_exit_detector: true # 基于 IMU 电梯运动阶段与停稳检测自动退出电梯模式
   door_detector:
-    enable: false # 是否启用电梯门关闭自动检测
+    enable: true # 是否启用电梯门关闭自动检测
     dist_threshold: 3.0 # 过滤后最远点小于该距离时认为轿厢封闭 [m]
     time_threshold: 2.0 # 封闭状态持续多久后触发电梯模式 [s]
     filter_percent: 0.06 # 计算最远距离时忽略最远端点的比例
     cooldown_time: 5.0 # 两次自动触发之间的冷却时间 [s]
+    accumulate:
+      enable: true # evaluate door ranges over a fixed data-time window, not one packet
+      window_s: 0.1
   # Beta 功能 —— 施加物体相对电梯没有z方向运动的先验，主要解决某些雷达水平安装，激光点完全没有z方向约束的情况，但仅适用于在电梯无上下相对运动的情况
   strong_prior_enable: false # 电梯模式下是否将 IMU 竖直加速度强先验解释为电梯加速度 az
   strong_prior_acc_var: 0.001 # 强先验 EKF 量测方差 [(m/s^2)^2]，越小越信任 IMU 竖直加速度
@@ -70,11 +73,11 @@ elevator:
     enable: true # 电梯相关 ZUPT 总开关
     # Beta 功能 —— 在进入电梯模式后周期性触发ZUPT，直到电梯运动才停止更新，解决在电梯内长时间停留但电梯实际没有启动的情况
     waiting:
-      enable: true # 是否启用等待阶段的周期性 ZUPT
+      enable: false # 是否启用等待阶段的周期性 ZUPT
       period_s: 3.0 # 等待阶段 ZUPT 检测周期 [s]
       vz_abs_thresh: 0.1 # 触发等待 ZUPT 的 |vz| 阈值
       az_abs_thresh: 0.1 # 触发等待 ZUPT 的 |az| 阈值
-  # Beta 功能 —— 到底新楼层时约束当前帧与历史地图重合，在重定位模式下默认开启，可以增强稳定性
+  # Beta 功能 —— 到底新楼层时约束当前帧与历史地图重合，默认关闭，可以增强稳定性
   exit_icp_z:
     enable: false # 到达新楼层并完成退出 ZUPT 后，使用当前帧与已有 ikd-tree 地图做仅 z 方向 ICP
     max_correction_m: 0.3 # ICP 的总 z 修正必须严格小于该值才接受 [m]
@@ -85,6 +88,8 @@ elevator:
     min_abs_normal_z: 0.7 # 只有接近水平面的对应点参与 z 求解
     max_residual_m: 0.3 # ICP 点面对应的最大残差 [m]
     converge_m: 1.0e-3 # 单次 z 增量收敛阈值 [m]
+  exit_cov_jacobian:
+    enable: true # P <- J P J^T before resetting the elevator state; false reproduces the legacy reset
   rebuild_map_on_exit:
     enable: false # 是否在退出电梯后清空旧地图并重建
     frames: 5 # 重建地图累计的 LiDAR 帧数
@@ -95,12 +100,17 @@ wheel:
   wheel_enable: false # 是否启用轮速计更新
 
 estimator:
+  sensor_gap_recovery:
+    enable: true # reject damaged scans and rematch against the trusted map
+    imu_gap_threshold_s: 0.05
+    lidar_gap_threshold_s: 0.3
+    max_window_s: 5.0
   lidar_update_mode: "pose6" # pose6 / full27； LiDAR残差仅对位姿有直接雅可比，pose6 计算量更小
   imu_update:
-    enable: true # 总开关；仅非电梯扫描超量程时局部启用 omg/acc 状态和逐 IMU LiDAR 更新
+    enable: false # 可选非电梯超量程分组更新；默认使用逐帧 IESKF
     saturation:
       gyro_limit_rad_s: 35.0 # MID360 IMU 角速度阈值 [rad/s]
-      accel_limit_g: 2.0 # 当前实验阈值 [g]
+      accel_limit_g: 5.0 # 可选增强的加速度量程门限 [g]
       process_noise_scale: 1000.0 # 有限超限或 NaN/Inf 轴的 input 过程噪声放大倍数
     output_state:
       velocity_process_variance: 20.0
@@ -112,7 +122,13 @@ estimator:
       accel_measurement_variance: 0.1
     lidar_measurement_variance: 1.0e-2 # 逐 IMU 分组点面量测方差 [m^2]
   online_gravity_estimation_enable: false # 本数据实验保持重力固定，避免与逐 IMU 分组更新形成额外变量
+  imu_input_noise:
+    elevator_acc_variance: 1.0e-2 # cabin propagation keeps its own noise
+    elevator_gyro_variance: 1.0e-5
+    acc_variance: 1.0e-2 # continuous-time input acceleration noise
+    gyro_variance: 1.0e-5 # continuous-time input gyroscope noise
   lidar_ieskf:
+    refresh_residual: true # re-evaluate cached planes at the current IESKF iterate
     max_iterations: 4 # 每帧最大迭代次数
     converge_rot_rad: 1.0e-3 # 旋转收敛阈值 [rad]
     converge_pos_m: 1.0e-3 # 位置收敛阈值 [m]
@@ -120,9 +136,9 @@ estimator:
     rematch_pos_m: 2.0e-3 # 触发重新匹配的位置阈值 [m]
   ikdtree_match:
     knn: 5 # 最近邻数量
-    plane_fit_rmse_threshold: 0.1 # pointlio 模式下 5 个近邻各自到拟合平面的最大距离 [m]
-    neighbor_max_dist2: 3.9 # 最远邻点的最大平方距离 [m^2]；pointlio 模式按原实现不使用此项
-    gate_mode: "pointlio" # pointlio：range > match_s * residual^2；另支持 linear_range / fastlio_score
+    plane_fit_rmse_threshold: 0.05 # plane-fit threshold [m]
+    neighbor_max_dist2: 5.0 # 最大近邻平方距离 [m^2]
+    gate_mode: "linear_range" # linear_range / fastlio_score / pointlio
     score_min: 0.95 # fastlio_score 模式的最低分数
     pointlio_match_s: 81.0 # Point-LIO 原始匹配门限系数
     match_thresh_base: 0.03 # linear_range 模式的基础残差阈值 [m]

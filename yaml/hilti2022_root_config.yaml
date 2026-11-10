@@ -1,0 +1,3 @@
+sensor_config: sensors/hilti2022.yaml
+runtime_config: runtime/mapping_nodoor.yaml
+logging_config: logging/default.yaml

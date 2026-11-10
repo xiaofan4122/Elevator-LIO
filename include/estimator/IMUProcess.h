@@ -86,6 +86,8 @@ public:
     void deactivateOutputReplay(State &state) const;
     bool propagateReplay(ReplayCursor &cursor, double target_time);
     bool getLatestProcessedSample(ProcessedImuSample &sample) const;
+    double latest_gap_end = 0.0;
+    double latest_gap_duration = 0.0;
     bool coversTimeRange(double start_time, double end_time) const;
     bool hasSaturationBetween(double start_time, double end_time,
                               int *sample_count = nullptr) const;
@@ -120,7 +122,7 @@ private:
     inline Pose get_pose(int index , double base_time);
 
     Eigen::MatrixXd Q_;
-    double ACC_NOISE_VAR = 1E-4;
+    double ACC_NOISE_VAR = 1E-2;
     double GYRO_NOISE_VAR = 1E-5;
     double ACC_RANDOM_WALK_VAR = 1E-6;
     double GYRO_RANDOM_WALK_VAR = 1E-6;

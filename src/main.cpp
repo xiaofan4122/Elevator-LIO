@@ -295,10 +295,16 @@ void LIONode::timer_2000HZ_callback()
                 // LiDAR 修正时刻并重新积分到后续 IMU 时刻。如果提前发布了这些后续 IMU 位姿，
                 // 后续 LiDAR 帧发布的校正位姿时间戳可能早于已发布时间戳，造成里程计时间回退。
                 // 因此这里只在预计下一帧 LiDAR 到达前的安全窗口内发布 IMU 先验位姿。
-                if (high_frequency_odom && lidar_frequency > 0.0 && lidar_end_time > 0.0) {
-                    const double next_lidar_time = lidar_end_time + 1.0 / lidar_frequency;
+                const double committed_lidar_time = lidar_pipeline_.lastCommittedTime();
+                if (high_frequency_odom && lio_tracking_valid.load() && lidar_frequency > 0.0 && committed_lidar_time > 0.0) {
+                    const double next_lidar_time = committed_lidar_time + 1.0 / lidar_frequency;
                     constexpr double kLidarArrivalGuardSec = 0.005;
-                    if (lastest_imu_time < next_lidar_time - kLidarArrivalGuardSec) {
+                    double publish_until = next_lidar_time - kLidarArrivalGuardSec;
+                    const auto pending_lidar = shared_bufs->getFrontLidarFrameSafe();
+                    if (pending_lidar) {
+                        publish_until = std::min(publish_until, pending_lidar->end_time);
+                    }
+                    if (lastest_imu_time > committed_lidar_time && lastest_imu_time < publish_until) {
                         publish_imu_odometry(state, lastest_imu_time);
                         publish_body_odometry(state, lastest_imu_time);
                         if (trajectory_log_enable & log_save_enable) {

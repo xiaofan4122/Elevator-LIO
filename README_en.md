@@ -30,6 +30,7 @@ When elevator mode is disabled in YAML, Elevator-LIO can be used as a regular LI
 - **2026-06-22**: Published the [rosbag manager video](https://www.bilibili.com/video/BV1n3jt64Eoi/?share_source=copy_web&vd_source=392db04838f1edf7d12e58a3d68775d8); the tool is released together with Elevator-LIO.
 - **2026-06-26**: ROS 1 source code released.
 - **2026-07-29**: ROS 2 Humble support was officially released; the same source tree supports both ROS 1 Noetic and ROS 2 Humble.
+- **2026-11-09**: Fixed known bugs, improved performance in LiDAR-degenerate scenarios, and added dataset parameter presets. See the [configuration guide](yaml/README.md#数据集预设与估计器参数).
 - **Planned**: More dataset releases, including additional complete sequences with images.
 - **Planned**: Source code and documentation for the handheld data-collection platform.
 
@@ -52,43 +53,13 @@ Conventional LIO assumes an inertial navigation frame. Inside a moving elevator 
 
 The system processes IMU and LiDAR data in timestamp order, including static IMU initialization, adaptive downsampling, mode-dependent propagation, LiDAR update, optional elevator-exit update, and incremental ikd-tree mapping. Normal scans use the original frame-wise IESKF. With the IMU update enhancement enabled, non-elevator scans containing an over-range sample are automatically undistorted and updated in adjacent IMU-time intervals.
 
-### Temporal LiDAR Updates and IMU Range Protection
+### IMU Range Protection and Sensor-Gap Recovery
 
-`estimator.imu_update.enable` is the master switch for this algorithm group, but enabling it does not
-change the normal filter path. Static initialization, live ring-buffer propagation, ordinary
-undistortion, and frame-wise IESKF updates keep the original input-IMU model. Only a non-elevator scan
-containing an over-range sample creates a local replay from the previous LiDAR posterior. During that
-replay, the current IMU is represented by `omg + bw` and `acc + ba`, and points are undistorted and
-updated in adjacent IMU-time intervals. At the end, the pose, velocity, bias, and gravity posterior is
-kept while cross covariance from the local `omg/acc` substate is removed before returning to input
-propagation. Therefore, when no sample reaches the configured limit, `enable: true` and `enable: false`
-use the same localization computation path. Elevator scans never activate this replay.
+The default frontend uses frame-wise IESKF with `estimator.imu_update.enable: false`. The default acceleration / gyroscope input process-noise variances are `1e-2` / `1e-5`, also used by M3DGR. The optional `robust_root_config.yaml` preset uses input process-noise variances of `1.0` for acceleration and `0.01` for angular rate outside elevators, and `1e-2` / `1e-5` inside elevators. These are filter settings that can be adjusted for the sensor and environment.
 
-```yaml
-estimator:
-  imu_update:
-    enable: true
-    saturation:
-      gyro_limit_rad_s: 35.0
-      accel_limit_g: 5.0
-      process_noise_scale: 1000.0
-    output_state:
-      velocity_process_variance: 20.0
-      angular_rate_process_variance: 1000.0
-      acceleration_process_variance: 500.0
-      gyro_bias_process_variance: 1.0e-4
-      accel_bias_process_variance: 1.0e-4
-      gyro_measurement_variance: 0.1
-      accel_measurement_variance: 0.1
-    lidar_measurement_variance: 1.0e-2
-```
+IMU-group updates remain available through an explicit opt-in, with a default acceleration threshold of `5g`. Finite over-range values cannot activate grouped updates or inflate input process noise inside elevators. Non-finite axes are handled separately.
 
-Range detection is estimator logic, so its thresholds are grouped with state noise, IMU measurement
-noise, and grouped-LiDAR measurement variance under `estimator.imu_update`, rather than under
-`sensors/livox.yaml`. Detection is per axis and uses each configured threshold directly, with no hidden
-ratio. Finite over-range values still participate in the `omg/acc` measurement update, but cannot
-trigger an IMU-group LiDAR update inside an elevator. Only NaN/Inf axes are replaced and omitted, and
-those samples do not enter the elevator-stop state machine.
+`estimator.sensor_gap_recovery` detects missing IMU intervals and LiDAR gaps, rejects damaged or incomplete scans, and registers a complete recovered scan against the last trusted map before resuming updates. Failed registration, an expired recovery window, or missing IMU data inside an elevator leaves tracking invalid. `/LIO/tracking_valid` reports initialization and gap-recovery status; high-frequency predicted odometry is suppressed while tracking is invalid. See the [configuration guide](yaml/README.md#传感器断流恢复).
 
 ### Elevator Mode Management
 
@@ -346,7 +317,7 @@ elevator:
   zupt:
     enable: true
     waiting:
-      enable: true
+      enable: false
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -355,7 +326,7 @@ elevator:
 ```
 
 > [!WARNING]
-> Elevator exit detection is relatively stable, but automatic entry detection may be falsely triggered in narrow corridors or other enclosed spaces. You can tune the `door_detector` thresholds for your scene, or publish your own trigger signal; see the topic-triggering commands in the "Elevator Mode" section above. `exit_icp_z.enable` is enabled by default in relocation mode and disabled by default in mapping mode. See [yaml/README.md](yaml/README.md) for all parameters.
+> Elevator exit detection is relatively stable, but automatic entry detection may be falsely triggered in narrow corridors or other enclosed spaces. Large cabins may also exceed the distance threshold and be missed; an external elevator-state signal can control mode entry in these cases. You can tune the `door_detector` thresholds for your scene, or publish your own trigger signal; see the topic-triggering commands in the "Elevator Mode" section above. `exit_icp_z.enable` is disabled by default in both mapping and relocation modes and can be enabled when needed. See [yaml/README.md](yaml/README.md) for all parameters.
 
 - **Relocation**. When enabling relocation, update the reference map file:
 

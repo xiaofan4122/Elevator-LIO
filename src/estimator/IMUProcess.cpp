@@ -168,6 +168,13 @@ void IMUProcess::integration(Vector3d IMU_acc, Vector3d IMU_gyr, double time_sta
         /* 2.1 上一帧索引与 Δt */
         int    prev = (head_ - 1 + MAX_LEN) % MAX_LEN;
         double dt   = time_stamp - time_buffer[prev];
+        if (dt > imu_gap_threshold_s) {
+            latest_gap_end = time_stamp;
+            latest_gap_duration = dt;
+            if (sensor_gap_recovery_enable) lio_tracking_valid.store(false);
+            LOG_WARN(Sensor, "[imu_gap] start=" << std::setprecision(16)
+                     << time_buffer[prev] << " end=" << time_stamp << " dt=" << dt);
+        }
 
         /* 2.2 梯形法求平均量 */
         Eigen::Vector3d acc_avg = 0.5 * (imu_acc_buffer[prev] + imu_acc_buffer[head_]);
@@ -239,6 +246,8 @@ void IMUProcess::set_init_state(State state_init ,double time_stamp) {
     std::fill(imu_gyr_saturation_buffer.begin(), imu_gyr_saturation_buffer.end(), 0);
 
     /* ---------- 过程噪声 Q (12×12) ---------- */
+    ACC_NOISE_VAR = imu_input_acc_noise_variance;
+    GYRO_NOISE_VAR = imu_input_gyro_noise_variance;
     Q_.setZero(StateNoiseIndex::NOISE_TOTAL,StateNoiseIndex::NOISE_TOTAL);
     Q_.block<3,3>(StateNoiseIndex::ACC_NOISE,        StateNoiseIndex::ACC_NOISE)         = ACC_NOISE_VAR        * Eigen::Matrix3d::Identity();
     Q_.block<3,3>(StateNoiseIndex::GYRO_NOISE,       StateNoiseIndex::GYRO_NOISE)        = GYRO_NOISE_VAR       * Eigen::Matrix3d::Identity();
@@ -313,6 +322,9 @@ void IMUProcess::sanitizeImuInput(Eigen::Vector3d &acc, Eigen::Vector3d &gyr,
                                   std::uint8_t &acc_mask, std::uint8_t &gyr_mask) {
     acc_mask = 0;
     gyr_mask = 0;
+    const bool detect_saturation = imu_update_enable &&
+            !(elevator_enable && (ELEVATOR_TRIGGER ||
+              (count_ > 0 && states_imu[wrapIndex(head_ - 1)].in_elevator)));
     const double acc_threshold = imu_saturation_accel_limit_g * G_m_s2;
     const double gyr_threshold = imu_saturation_gyro_limit_rad_s;
 
@@ -324,9 +336,9 @@ void IMUProcess::sanitizeImuInput(Eigen::Vector3d &acc, Eigen::Vector3d &gyr,
         const std::uint8_t invalid_bit = static_cast<std::uint8_t>(1u << (axis + 3));
         const bool acc_invalid = !std::isfinite(acc(axis));
         const bool gyr_invalid = !std::isfinite(gyr(axis));
-        const bool acc_saturated = imu_update_enable &&
+        const bool acc_saturated = detect_saturation &&
                                    !acc_invalid && std::abs(acc(axis)) >= acc_threshold;
-        const bool gyr_saturated = imu_update_enable &&
+        const bool gyr_saturated = detect_saturation &&
                                    !gyr_invalid && std::abs(gyr(axis)) >= gyr_threshold;
 
         if (acc_invalid) {
@@ -748,6 +760,16 @@ State IMUProcess::predictOnce(const State            &prev,
 
     /* === 7. 协方差传播 === */
     Eigen::MatrixXd Q_step = Q_;
+    // Finite over-range events must not alter the elevator propagation model.
+    // Non-finite axes remain invalid and retain their uncertainty treatment.
+    if (prev.in_elevator) {
+        Q_step.block<3,3>(StateNoiseIndex::ACC_NOISE, StateNoiseIndex::ACC_NOISE) =
+                imu_elevator_acc_noise_variance * Eigen::Matrix3d::Identity();
+        Q_step.block<3,3>(StateNoiseIndex::GYRO_NOISE, StateNoiseIndex::GYRO_NOISE) =
+                imu_elevator_gyro_noise_variance * Eigen::Matrix3d::Identity();
+        acc_saturation_mask = (acc_saturation_mask >> 3) & 0x07;
+        gyr_saturation_mask = (gyr_saturation_mask >> 3) & 0x07;
+    }
     for (int axis = 0; axis < 3; ++axis) {
         const std::uint8_t bit = static_cast<std::uint8_t>(1u << axis);
         if ((gyr_saturation_mask & bit) != 0) {
@@ -938,6 +960,8 @@ void IMUProcess::initialize(double t0 )
     std::fill(imu_gyr_saturation_buffer.begin(), imu_gyr_saturation_buffer.end(), 0);
 
     /* ---------- 2. 过程噪声 Q (12×12) ---------- */
+    ACC_NOISE_VAR = imu_input_acc_noise_variance;
+    GYRO_NOISE_VAR = imu_input_gyro_noise_variance;
     Q_.setZero(StateNoiseIndex::NOISE_TOTAL,StateNoiseIndex::NOISE_TOTAL);
     Q_.block<3,3>(StateNoiseIndex::ACC_NOISE,        StateNoiseIndex::ACC_NOISE)         = ACC_NOISE_VAR        * Eigen::Matrix3d::Identity();
     Q_.block<3,3>(StateNoiseIndex::GYRO_NOISE,       StateNoiseIndex::GYRO_NOISE)        = GYRO_NOISE_VAR       * Eigen::Matrix3d::Identity();
@@ -1289,7 +1313,7 @@ void IMUProcess::get_imu_pose_from_t1_to_t2(std::vector<Pose> &IMU_Pose_vec, dou
     replace = std::abs(time_buffer[next_index] - time_stamp_2) < 1E-6;
 
     if (replace) {
-        IMU_Pose_vec.push_back(get_pose(next_index,time_stamp_2));
+        IMU_Pose_vec.push_back(get_pose(next_index,time_stamp_1));
     }else {
         // 多插值一个结束状态
         double ratio = (time_stamp_2 - time_buffer[right_index]) /

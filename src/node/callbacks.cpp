@@ -18,10 +18,9 @@ extern std::shared_ptr<TopicProcess> p_topic_process;
  * @param msg 点云数据
  */
 void pcl_cbk_custom(const lio_ros::CustomMsgConstPtr& msg) {
-    // Keep early LiDAR frames before and during IMU initialization. The pipeline
-    // later discards only frames outside the initialized IMU time range, so
-    // the first map frame is selected by sensor timestamps rather than callback
-    // scheduling or rosbag playback rate.
+    // Keep incoming scans during IMU initialization. The ikd-tree frontend
+    // accumulates startup scans, while IVox waits for initialized IMU coverage
+    // before selecting its first scan.
     p_topic_process->receive_points(msg);
 }
 

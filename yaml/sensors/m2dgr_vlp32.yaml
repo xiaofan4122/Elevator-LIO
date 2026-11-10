@@ -1,0 +1,21 @@
+lidar_type: 3 # Livox = 1, Ouster = 2, Velodyne = 3, XT32 = 4
+
+# M2DGR (RA-L 2022) ground robot: Velodyne VLP-32C + Handsfree A9 IMU (150 Hz).
+# LiDAR position in the IMU frame from the M2DGR configuration of Ground-Fusion++ (extrinsic_T, R = I).
+offset:
+  imu_t_lidar: [ 0.27255, -0.00053, 0.17954] # IMU系下激光雷达的位置
+  imu_R_lidar:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  lidar_t_body: [0.0, 0.0, 0.0] # body frame collapsed onto the LiDAR frame
+  lidar_R_body:
+    - [1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+
+topic_sub:
+  lidar_topic_name: "/velodyne_points"
+  imu_topic_name: "/handsfree/imu"
+  wheel_topic_name: "/wheel_info" # unused
+  elevator_flag_topic_name: "/LIO/set_elevator_flag"

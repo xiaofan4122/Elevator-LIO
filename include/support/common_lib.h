@@ -7,6 +7,7 @@
 
 #ifndef COMMON_LIB_H
 #define COMMON_LIB_H
+#include <atomic>
 
 // 启用并行计算
 #define MP_EN
@@ -459,6 +460,19 @@ extern double output_imu_gyro_measurement_variance;
 extern double output_imu_accel_measurement_variance;
 extern double imu_update_lidar_measurement_variance; // 逐 IMU 分组点面量测方差 [m^2]
 extern bool online_gravity_estimation_enable; // 是否在线估计重力加速度状态
+extern bool sensor_gap_recovery_enable;
+extern double imu_gap_threshold_s;
+extern double lidar_gap_threshold_s;
+extern double gap_recovery_max_window_s;
+extern std::atomic<bool> lio_tracking_valid;
+extern double imu_input_acc_noise_variance;
+extern double imu_input_gyro_noise_variance;
+extern double imu_elevator_acc_noise_variance;
+extern double imu_elevator_gyro_noise_variance;
+extern bool lidar_ieskf_refresh_residual;
+extern bool elevator_exit_cov_jacobian_enable;
+extern bool elevator_door_accumulate_enable;
+extern double elevator_door_accumulate_window_s;
 extern int lidar_ieskf_max_iterations;
 extern double lidar_ieskf_converge_rot_rad;
 extern double lidar_ieskf_converge_pos_m;

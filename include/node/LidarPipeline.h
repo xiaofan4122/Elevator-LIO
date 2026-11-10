@@ -40,6 +40,9 @@ public:
                    std::shared_ptr<IkdMap<PointType>> ikd_map);
 
     Result process();
+    double lastCommittedTime() const {
+        return temporal_anchor_valid_ ? temporal_anchor_state_.time : -1.0;
+    }
 
 private:
     struct FrameData {
@@ -48,6 +51,11 @@ private:
         double end_time = 0.0;
     };
 
+    bool recoverAfterSensorGap(const FrameData& frame, Result& result);
+    bool gap_recovery_pending_ = false;
+    double handled_imu_gap_end_ = 0.0;
+    double recovery_data_start_ = 0.0;
+    double trusted_scan_span_s_ = 0.1;
     bool dequeueFrame(FrameData& out);
     void initAdaptiveVoxel();
     void updateAdaptiveConfig(double end_time);
@@ -67,6 +75,7 @@ private:
     void commitFrame(const FrameData& frame, const State& post_state,
                      bool temporal_update_done);
 
+    lio_ros::Publisher<lio_ros::Bool> tracking_valid_pub_;
     lio_ros::Publisher<lio_ros::Bool> ele_state_pub_;
     lio_ros::Publisher<lio_ros::ElevatorState> elevator_estimate_pub_;
 
@@ -77,6 +86,9 @@ private:
     std::shared_ptr<IkdMap<PointType>> ikd_map_;
 
     PointCloudXYZI::Ptr raw_clouds_lidar_;
+    PointCloudXYZI::Ptr cloud_init_accum_lidar_{new PointCloudXYZI};
+    int init_lidar_accum_count_ = 0;
+    static constexpr int kInitLidarAccumFrames = 5;
     PointCloudXYZI::Ptr cloud_init_lidar_;
     PointCloudXYZI::Ptr cloud_init_world_;
     PointCloudXYZI::Ptr rebuild_map_accum_lidar_;
@@ -99,6 +111,8 @@ private:
     double smoothed_lidar_dt_for_adaptive_ = 0.0;
     bool adaptive_dt_warmed_up_ = false;
 
+    // Detector input is stored before the in-place deskew mutates a scan.
+    std::deque<FrameData> door_detector_window_;
     bool first_lidar_ = true;
 
     bool exit_from_elevator_ = false;

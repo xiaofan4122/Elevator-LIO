@@ -32,6 +32,7 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 - **2026-06-22**：发布 [rosbag 管理器视频](https://www.bilibili.com/video/BV1n3jt64Eoi/?share_source=copy_web&vd_source=392db04838f1edf7d12e58a3d68775d8)，该工具随 Elevator-LIO 一同开源。
 - **2026-06-26**：ROS 1 源码发布。
 - **2026-07-29**：正式发布 ROS 2 Humble 支持；同一套源码兼容 ROS 1 Noetic 与 ROS 2 Humble。
+- **2026-11-09**：修复已知 bug，优化在 LiDAR 退化场景下的性能；新增数据集参数预设，见 [配置说明](yaml/README.md#数据集预设与估计器参数)。
 - **计划中**：更多数据集发布，包括更多带图像的完整序列。
 - **计划中**：手持采集平台软硬件源码与文档公开。
 
@@ -54,40 +55,13 @@ Elevator-LIO 是面向电梯非惯性运动和跨楼层定位的 LiDAR-惯性里
 
 系统按照时间顺序处理 IMU 和 LiDAR 数据，依次完成静态 IMU 初始化、自适应降采样、模式相关传播、LiDAR 更新、可能的退出电梯更新和增量 ikd-Tree 建图。正常扫描使用原始逐帧 IESKF；启用 IMU 更新增强后，非电梯模式下含超量程样本的扫描自动按相邻 IMU 时刻分组去畸变和更新。
 
-### 时序 LiDAR 更新与 IMU 量程保护
+### IMU 量程保护与传感器断流恢复
 
-`estimator.imu_update.enable` 是这一组算法的总开关。开启并不改变平时的滤波器：静态
-初始化、实时 IMU 环形缓冲传播、普通去畸变和逐帧 IESKF 均继续使用原始 input IMU
-模型。只有非电梯扫描内出现超量程样本时，才从上一个 LiDAR 后验建立局部 replay，
-将当前 IMU 映射为 `omg + bw` 和 `acc + ba`，再把降采样点按相邻 IMU 时间区间分组去畸变
-和更新。分组结束后保留位姿、速度、bias 和重力后验，清除局部 `omg/acc` 与常规状态的
-交叉协方差，然后回到 input 传播。因此如果全程没有达到量程阈值，`enable: true` 与
-`enable: false` 的定位计算路径相同。电梯内不启动该 replay，仍使用原始逻辑。
+默认使用逐帧 IESKF，并关闭 `estimator.imu_update.enable`。加速度/陀螺输入过程噪声方差默认分别为 `1e-2` / `1e-5`；M3DGR 共用这组默认值。`robust_root_config.yaml` 选择异常数据预设，在电梯外使用较大的 IMU 输入过程噪声方差（加速度 `1.0`、陀螺 `0.01`），电梯内分别使用 `1e-2`、`1e-5`。这些是滤波器的过程噪声配置，可根据传感器和场景调整。
 
-```yaml
-estimator:
-  imu_update:
-    enable: true
-    saturation:
-      gyro_limit_rad_s: 35.0
-      accel_limit_g: 5.0
-      process_noise_scale: 1000.0
-    output_state:
-      velocity_process_variance: 20.0
-      angular_rate_process_variance: 1000.0
-      acceleration_process_variance: 500.0
-      gyro_bias_process_variance: 1.0e-4
-      accel_bias_process_variance: 1.0e-4
-      gyro_measurement_variance: 0.1
-      accel_measurement_variance: 0.1
-    lidar_measurement_variance: 1.0e-2
-```
+需要逐 IMU 分组增强时，可显式开启 `estimator.imu_update.enable` 并设置量程门限。默认加速度门限为 `5g`；电梯内不会因有限值超限启动分组更新或额外放大过程噪声，NaN/Inf 仍会单独处理。
 
-量程检测是估计器算法的一部分，因此与状态噪声、IMU 量测噪声及分组 LiDAR 量测方差统一
-放在运行配置的 `estimator.imu_update` 下，而不放在 `sensors/livox.yaml`。检测逐轴进行，
-阈值直接使用配置值，不乘额外比例；有限超限值仍参与 `omg/acc` 量测，但电梯内不会
-触发逐 IMU 分组 LiDAR 更新。NaN/Inf 轴才会被替换并从量测中屏蔽，也不会参与电梯停靠
-状态机。
+`estimator.sensor_gap_recovery` 检测 IMU 断档和 LiDAR 断流，拒绝跨断档、稀疏或不完整扫描，保留最后可信地图，用恢复后的完整扫描重新配准。配准通过后才恢复滤波和建图；失败、超出恢复窗口或电梯内 IMU 缺测时保持失跟。`/LIO/tracking_valid` 表示初始化与断流恢复状态，失跟期间停止发布高频预测里程计。参数见 [配置说明](yaml/README.md#传感器断流恢复)。
 
 ### 电梯模式管理
 
@@ -345,7 +319,7 @@ elevator:
   zupt:
     enable: true # 电梯相关 ZUPT 总开关
     waiting:
-      enable: true # 进入电梯后的等待阶段是否周期性触发 ZUPT
+      enable: false # 进入电梯后的等待阶段是否周期性触发 ZUPT
       period_s: 3.0
       vz_abs_thresh: 0.1
       az_abs_thresh: 0.1
@@ -354,7 +328,7 @@ elevator:
 ```
 
 > [!WARNING]
-> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。重定位配置中默认开启 `exit_icp_z.enable`，建图配置中默认关闭，详细参数见 [yaml/README.md](yaml/README.md)。
+> 电梯退出检测相对稳定，但自动进入检测在狭窄走廊等封闭环境中可能误触发。较大轿厢也可能因距离门限而漏检；此时可使用外部电梯状态信号控制进入模式。您可以根据场景调整 `door_detector` 相关阈值，或自行发布触发信号；话题触发方式请参考上方“电梯模式说明”中的通过话题触发小节。建图和重定位配置中均默认关闭 `exit_icp_z.enable`，需要时可手动开启，详细参数见 [yaml/README.md](yaml/README.md)。
 
 - **重定位设置**，启用重定位时记得修改参考地图文件
 

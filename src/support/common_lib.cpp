@@ -252,15 +252,28 @@ double output_imu_gyro_measurement_variance = 0.1;
 double output_imu_accel_measurement_variance = 0.1;
 double imu_update_lidar_measurement_variance = 1e-2;
 bool online_gravity_estimation_enable = false;
+bool sensor_gap_recovery_enable = false;
+double imu_gap_threshold_s = 0.05;
+double lidar_gap_threshold_s = 0.3;
+double gap_recovery_max_window_s = 5.0;
+std::atomic<bool> lio_tracking_valid{false};
+double imu_input_acc_noise_variance = 1e-2;
+double imu_input_gyro_noise_variance = 1e-5;
+double imu_elevator_acc_noise_variance = 1e-2;
+double imu_elevator_gyro_noise_variance = 1e-5;
+bool lidar_ieskf_refresh_residual = true;
+bool elevator_exit_cov_jacobian_enable = true;
+bool elevator_door_accumulate_enable = true;
+double elevator_door_accumulate_window_s = 0.1;
 int lidar_ieskf_max_iterations = 4;
 double lidar_ieskf_converge_rot_rad = 1e-3;
 double lidar_ieskf_converge_pos_m = 1e-3;
 double lidar_ieskf_rematch_rot_rad = 2e-3;
 double lidar_ieskf_rematch_pos_m = 2e-3;
 int ikdtree_match_knn = 5;
-double ikdtree_plane_fit_rmse_threshold = 0.1;
+double ikdtree_plane_fit_rmse_threshold = 0.05;
 double ikdtree_neighbor_max_dist2 = 5.0;
-string ikdtree_gate_mode = "pointlio";
+string ikdtree_gate_mode = "linear_range";
 double ikdtree_score_min = 0.95;
 double ikdtree_pointlio_match_s = 81.0;
 double ikdtree_match_thresh_base = 0.03;
@@ -281,11 +294,11 @@ double elevator_door_cooldown_time = 5.0;
 bool elevator_strong_prior_enable = false;
 double elevator_strong_prior_acc_var = 1e-3;
 bool elevator_zupt_enable = true;
-bool elevator_waiting_zupt_enable = true;
+bool elevator_waiting_zupt_enable = false;
 double elevator_waiting_zupt_period_s = 3.0;
 double elevator_waiting_zupt_vz_abs_thresh = 0.1;
 double elevator_waiting_zupt_az_abs_thresh = 0.1;
-bool elevator_exit_icp_z_enable = true;
+bool elevator_exit_icp_z_enable = false;
 double elevator_exit_icp_z_max_correction_m = 0.3;
 int elevator_exit_icp_z_max_iterations = 5;
 int elevator_exit_icp_z_min_effective_points = 20;
@@ -641,6 +654,35 @@ void load_lio_yaml(const std::vector<string>& file_names) {
         ConfigPrinter::printItem("imu_update.saturation.accel_limit_g", imu_saturation_accel_limit_g);
         ConfigPrinter::printItem("imu_update.saturation.process_noise_scale", imu_saturation_process_noise_scale);
         readYamlOrDefault(reader, "estimator.online_gravity_estimation_enable", online_gravity_estimation_enable);
+        readYamlOrDefault(reader, "estimator.sensor_gap_recovery.enable", sensor_gap_recovery_enable);
+        readYamlOrDefault(reader, "estimator.sensor_gap_recovery.imu_gap_threshold_s", imu_gap_threshold_s);
+        readYamlOrDefault(reader, "estimator.sensor_gap_recovery.lidar_gap_threshold_s", lidar_gap_threshold_s);
+        readYamlOrDefault(reader, "estimator.sensor_gap_recovery.max_window_s", gap_recovery_max_window_s);
+        if (!std::isfinite(imu_gap_threshold_s) || imu_gap_threshold_s <= 0.0 ||
+            !std::isfinite(lidar_gap_threshold_s) || lidar_gap_threshold_s <= 0.0 ||
+            !std::isfinite(gap_recovery_max_window_s) || gap_recovery_max_window_s <= 0.0) {
+            throw std::runtime_error("Sensor gap thresholds and recovery window must be finite and positive");
+        }
+        ConfigPrinter::printItemBool("sensor_gap_recovery.enable", sensor_gap_recovery_enable);
+        readYamlOrDefault(reader, "estimator.imu_input_noise.acc_variance", imu_input_acc_noise_variance);
+        readYamlOrDefault(reader, "estimator.imu_input_noise.gyro_variance", imu_input_gyro_noise_variance);
+        readYamlOrDefault(reader, "estimator.imu_input_noise.elevator_acc_variance", imu_elevator_acc_noise_variance);
+        readYamlOrDefault(reader, "estimator.imu_input_noise.elevator_gyro_variance", imu_elevator_gyro_noise_variance);
+        readYamlOrDefault(reader, "estimator.lidar_ieskf.refresh_residual", lidar_ieskf_refresh_residual);
+        readYamlOrDefault(reader, "elevator.exit_cov_jacobian.enable", elevator_exit_cov_jacobian_enable);
+        readYamlOrDefault(reader, "elevator.door_detector.accumulate.enable", elevator_door_accumulate_enable);
+        readYamlOrDefault(reader, "elevator.door_detector.accumulate.window_s", elevator_door_accumulate_window_s);
+        if (!std::isfinite(imu_elevator_acc_noise_variance) || imu_elevator_acc_noise_variance <= 0.0 ||
+            !std::isfinite(imu_elevator_gyro_noise_variance) || imu_elevator_gyro_noise_variance <= 0.0 ||
+            !std::isfinite(imu_input_acc_noise_variance) || imu_input_acc_noise_variance <= 0.0 ||
+            !std::isfinite(imu_input_gyro_noise_variance) || imu_input_gyro_noise_variance <= 0.0 ||
+            !std::isfinite(elevator_door_accumulate_window_s) || elevator_door_accumulate_window_s <= 0.0) {
+            throw std::runtime_error("IMU noise variances and door window must be finite and positive");
+        }
+        ConfigPrinter::printItemBool("lidar_ieskf.refresh_residual", lidar_ieskf_refresh_residual);
+        ConfigPrinter::printItemBool("exit_cov_jacobian.enable", elevator_exit_cov_jacobian_enable);
+        ConfigPrinter::printItem("imu_input_noise.acc_variance", imu_input_acc_noise_variance);
+        ConfigPrinter::printItem("imu_input_noise.gyro_variance", imu_input_gyro_noise_variance);
         readYamlOrDefault(reader, "estimator.lidar_ieskf.max_iterations", lidar_ieskf_max_iterations);
         readYamlOrDefault(reader, "estimator.lidar_ieskf.converge_rot_rad", lidar_ieskf_converge_rot_rad);
         readYamlOrDefault(reader, "estimator.lidar_ieskf.converge_pos_m", lidar_ieskf_converge_pos_m);

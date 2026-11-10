@@ -22,6 +22,7 @@ struct NormVec {
     Eigen::Vector3d norm_vec;
     Eigen::Vector3d point_imu_xyz;
     double d = 0.0;
+    double plane_d = 0.0;
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
@@ -29,6 +30,8 @@ class EskfEstimator {
 public:
     using PoseJacobianMatrix = Eigen::Matrix<double, Eigen::Dynamic, 6, Eigen::RowMajor>;
 
+    bool recoverPoseAfterGap(const PointCloudXYZI &cloud, State &candidate,
+                             double &fitness, double &rmse);
     struct ZIcpResult {
         bool accepted = false;
         bool degenerate = false;

@@ -43,6 +43,10 @@ LidarPipeline::LidarPipeline(lio_ros::Node& nh,
     , point_group_cloud_(new PointCloudXYZI)
     , point_world_cloud_(new PointCloudXYZI)
 {
+    tracking_valid_pub_ = nh.advertise<lio_ros::Bool>("/LIO/tracking_valid", 1, true);
+    lio_tracking_valid.store(false);
+    lio_ros::Bool tracking; tracking.data = false;
+    tracking_valid_pub_.publish(tracking);
     ele_state_pub_ = nh.advertise<lio_ros::Bool>("/LIO/in_elevator", 1, true);
     elevator_estimate_pub_ = nh.advertise<lio_ros::ElevatorState>("/LIO/elevator_state", 1, true);
 }
@@ -144,6 +148,34 @@ bool LidarPipeline::dequeueFrame(FrameData& out) {
 bool LidarPipeline::handleFirstLidarInit(const FrameData& frame) {
     if (!first_lidar_ || relocation_enable) return false;
 
+    if (!ikd_map_->usesIvox()) {
+        cloud_init_accum_lidar_->points.insert(
+            cloud_init_accum_lidar_->points.end(),
+            frame.raw_cloud->points.begin(), frame.raw_cloud->points.end());
+        cloud_init_accum_lidar_->width = static_cast<uint32_t>(cloud_init_accum_lidar_->points.size());
+        cloud_init_accum_lidar_->height = 1;
+        cloud_init_accum_lidar_->is_dense = false;
+        init_lidar_accum_count_++;
+
+        if (init_lidar_accum_count_ < kInitLidarAccumFrames) {
+            shared_bufs_->popFrontLidarFrameSafe();
+            return true; // still accumulating
+        }
+
+        ikdtree.set_downsample_param(min_filter_size);
+        applyVoxelFilter(cloud_init_accum_lidar_, cloud_init_lidar_, blind, min_filter_size);
+        cloud_init_world_ = estimator_->transLidar2World(*cloud_init_lidar_);
+        ikd_map_->add(cloud_init_world_);
+        std::cout << "[LidarPipeline] Build Map Model with "
+                  << kInitLidarAccumFrames << " lidar frames" << std::endl;
+
+        first_lidar_ = false;
+        init_lidar_accum_count_ = 0;
+        cloud_init_accum_lidar_->clear();
+        shared_bufs_->popFrontLidarFrameSafe();
+        return true; // handled
+    }
+
     // Point-LIO's MID360 launch seeds IVox with one full, undistorted scan.
     // LiDAR frames can have accumulated while the IMU was initializing. Drop
     // those stale frames just as Point-LIO does until a whole scan is covered.
@@ -226,9 +258,37 @@ bool LidarPipeline::handlePostElevatorRebuild(const FrameData& frame) {
 
 void LidarPipeline::resolveFrameState(const FrameData& frame, State& out_state, bool& out_in_elevator) {
     imu_process_.get_state_at_t(out_state, frame.end_time);
-    imu_process_.elev_process.processDoorDetector(
-        *frame.raw_cloud, frame.end_time, out_state,
-        FSM::current_state == FSM::State::LidarProcess);
+    if (!elevator_door_accumulate_enable) {
+        door_detector_window_.clear();
+        imu_process_.elev_process.processDoorDetector(
+            *frame.raw_cloud, frame.end_time, out_state,
+            FSM::current_state == FSM::State::LidarProcess);
+    } else if (!out_state.in_elevator) {
+        FrameData snapshot = frame;
+        snapshot.raw_cloud.reset(new PointCloudXYZI(*frame.raw_cloud));
+        door_detector_window_.push_back(std::move(snapshot));
+        constexpr double tolerance = 1e-3;
+        while (door_detector_window_.size() > 1 &&
+               frame.end_time - door_detector_window_[1].base_time >=
+                   elevator_door_accumulate_window_s - tolerance) {
+            door_detector_window_.pop_front();
+        }
+        if (frame.end_time - door_detector_window_.front().base_time >=
+                elevator_door_accumulate_window_s - tolerance) {
+            PointCloudXYZI accumulated;
+            for (const auto& sample : door_detector_window_) {
+                accumulated.points.insert(accumulated.points.end(),
+                    sample.raw_cloud->points.begin(), sample.raw_cloud->points.end());
+            }
+            // Ranges stay in each scan's own sensor frame. Detector input is
+            // independent of estimated poses and uses a fixed data-time span.
+            imu_process_.elev_process.processDoorDetector(
+                accumulated, frame.end_time, out_state,
+                FSM::current_state == FSM::State::LidarProcess);
+        }
+    } else {
+        door_detector_window_.clear();
+    }
     out_in_elevator = out_state.in_elevator;
 }
 
@@ -641,6 +701,13 @@ void LidarPipeline::handleElevatorExit(State& post_state) {
 
     const double delta_z_commit = post_state.z;
     post_state.p(2) += delta_z_commit;
+    if (elevator_exit_cov_jacobian_enable) {
+        // Re-anchor p_z <- p_z + z before either reset clears the cross terms:
+        // P <- J P J^T, J = I + e_pz e_z^T (the revised paper's reset).
+        const int pz = StateIndex::P + 2;
+        post_state.P.row(pz) += post_state.P.row(StateIndex::Z);
+        post_state.P.col(pz) += post_state.P.col(StateIndex::Z);
+    }
 
     if (elevator_exit_icp_z_enable) {
         const EskfEstimator::ZIcpResult icp_result =
@@ -717,10 +784,18 @@ void LidarPipeline::commitFrame(const FrameData& frame, const State& post_state,
     // Keep the latest committed posterior as the causal anchor even when this
     // scan used the ordinary frame update.  A later on-demand temporal update
     // must never restart from an overlapping raw scan time before this state.
+    const double scan_span = frame.end_time - frame.base_time;
+    if (scan_span > 1e-4 && scan_span < 1.0) {
+        trusted_scan_span_s_ = temporal_anchor_valid_
+                ? 0.9 * trusted_scan_span_s_ + 0.1 * scan_span : scan_span;
+    }
     temporal_anchor_state_ = committed_state;
     temporal_anchor_covariance_time_ = temporal_update_done
             ? pending_temporal_covariance_time_ : state_commit_time;
     temporal_anchor_valid_ = true;
+    lio_tracking_valid.store(true);
+    lio_ros::Bool tracking; tracking.data = true;
+    tracking_valid_pub_.publish(tracking);
 
     lio_ros::Bool msg;
     msg.data = post_state.in_elevator;
@@ -785,6 +860,11 @@ LidarPipeline::Result LidarPipeline::process() {
         return result;
     }
 
+    if (sensor_gap_recovery_enable && recoverAfterSensorGap(frame, result)) {
+        FSM::dispatch(FSM::Event::LidarEnd);
+        return result;
+    }
+
     // [2] Adaptive voxel config
     updateAdaptiveConfig(frame.end_time);
 
@@ -812,6 +892,7 @@ LidarPipeline::Result LidarPipeline::process() {
     State post_state = lidar_end_state;
     int over_range_samples = 0;
     const bool request_imu_group_update = imu_update_enable &&
+            !ELEVATOR_TRIGGER &&
             !lidar_end_state.in_elevator &&
             imu_process_.hasSaturationBetween(
                     frame.base_time, frame.end_time, &over_range_samples);
@@ -856,4 +937,91 @@ LidarPipeline::Result LidarPipeline::process() {
 
     FSM::dispatch(FSM::Event::LidarEnd);
     return result;
+}
+
+// Recover only against the last trusted map. Candidate scans are never inserted
+// before registration is accepted; missing motion is not filled with poses.
+bool LidarPipeline::recoverAfterSensorGap(const FrameData& frame, Result& result) {
+    if (!temporal_anchor_valid_) return false;
+    const double gap_end = imu_process_.latest_gap_end;
+    if (gap_end > handled_imu_gap_end_ && gap_end > temporal_anchor_state_.time &&
+        frame.end_time > gap_end - imu_process_.latest_gap_duration) {
+        gap_recovery_pending_ = true;
+        recovery_data_start_ = std::max(recovery_data_start_, gap_end);
+    }
+    if (!gap_recovery_pending_ && !temporal_anchor_state_.in_elevator &&
+        !ELEVATOR_TRIGGER &&
+        frame.base_time - temporal_anchor_state_.time > lidar_gap_threshold_s) {
+        gap_recovery_pending_ = true;
+        recovery_data_start_ = frame.base_time;
+        LOG_WARN(Core, "[lidar_gap] duration="
+                 << frame.base_time - temporal_anchor_state_.time);
+    }
+    if (!gap_recovery_pending_) return false;
+    lio_tracking_valid.store(false);
+    lio_ros::Bool tracking; tracking.data = false;
+    tracking_valid_pub_.publish(tracking);
+    auto reject = [&]() { shared_bufs_->popFrontLidarFrameSafe(); return true; };
+    const double nominal_period = trusted_scan_span_s_;
+    const double scan_span = frame.end_time - frame.base_time;
+    if (frame.base_time < recovery_data_start_ || scan_span < 0.75 * nominal_period ||
+        scan_span > 1.5 * nominal_period || frame.raw_cloud->size() < 500 ||
+        !imu_process_.coversTimeRange(frame.base_time, frame.end_time)) {
+        LOG_WARN(Core, "[gap_recovery] discard invalid scan t="
+                 << std::setprecision(16) << frame.end_time);
+        return reject();
+    }
+    if (frame.end_time - temporal_anchor_state_.time > gap_recovery_max_window_s ||
+        temporal_anchor_state_.in_elevator || ELEVATOR_TRIGGER) {
+        LOG_WARN(Core, "[gap_recovery] tracking lost; restart or external relocalization required");
+        return reject();
+    }
+    const bool missing_imu = gap_end > temporal_anchor_state_.time;
+    State seed = temporal_anchor_state_;
+    if (missing_imu) {
+        seed.p += seed.v * (frame.base_time - seed.time);
+    } else {
+        // With LiDAR-only loss, retain the real IMU rotation and motion as the
+        // registration seed instead of replacing them with constant velocity.
+        imu_process_.get_state_at_t(seed, frame.base_time);
+    }
+    seed.time = frame.base_time;
+    seed.P.setZero();
+    seed.P.diagonal().setConstant(1e-3);
+    seed.P.block<3,3>(StateIndex::R,StateIndex::R).setIdentity();
+    seed.P.block<3,3>(StateIndex::R,StateIndex::R) *= 0.01;
+    seed.P.block<3,3>(StateIndex::P,StateIndex::P).setIdentity();
+    seed.P.block<3,3>(StateIndex::P,StateIndex::P) *= 0.04;
+    seed.P.block<3,3>(StateIndex::V,StateIndex::V).setIdentity();
+    seed.P.block<3,3>(StateIndex::BW,StateIndex::BW) =
+            temporal_anchor_state_.P.block<3,3>(StateIndex::BW,StateIndex::BW);
+    seed.P.block<3,3>(StateIndex::BA,StateIndex::BA) =
+            temporal_anchor_state_.P.block<3,3>(StateIndex::BA,StateIndex::BA);
+    imu_process_.set_state_at_t(seed, frame.base_time);
+    State candidate;
+    imu_process_.get_state_at_t(candidate, frame.end_time);
+    PointCloudXYZI::Ptr scan(new PointCloudXYZI(*frame.raw_cloud));
+    if (!undistortFrame(frame, candidate, scan)) return reject();
+    // A sensor outage does not change the nominal scan or point-budget period.
+    last_lidar_stamp_for_adaptive_ = frame.end_time - nominal_period;
+    updateAdaptiveConfig(frame.end_time);
+    downsampleFrame(scan);
+    double fitness = 0.0, rmse = 0.0;
+    if (!estimator_->recoverPoseAfterGap(*downsampled_cloud_, candidate, fitness, rmse)) {
+        LOG_WARN(Core, "[gap_recovery] registration rejected fitness=" << fitness << " rmse=" << rmse);
+        return reject();
+    }
+    if (missing_imu) candidate.v = temporal_anchor_state_.v;
+    estimator_->set_cur_state(candidate);
+    raw_clouds_lidar_ = scan;
+    runIeskfUpdate(candidate);
+    commitFrame(frame, candidate, false);
+    handled_imu_gap_end_ = gap_end;
+    gap_recovery_pending_ = false;
+    result.processed = true;
+    result.post_state = candidate;
+    result.dedistorted_cloud = scan;
+    LOG_WARN(Core, "[gap_recovery] accepted t=" << std::setprecision(16) << frame.end_time
+             << " fitness=" << fitness << " rmse=" << rmse);
+    return true;
 }
