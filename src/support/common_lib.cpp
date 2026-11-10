@@ -328,7 +328,7 @@ bool EleState_vis = false;
 int lidar_type = 1; // Livox = 1, Ouster = 2, Velodyne = 3, XT32 = 4
 
 
-void load_lio_yaml(const std::vector<string>& file_names) {
+bool load_lio_yaml(const std::vector<string>& file_names) {
     std::vector<std::string> config_paths;
     config_paths.reserve(file_names.size());
     for (const auto& file_name : file_names) {
@@ -873,9 +873,11 @@ void load_lio_yaml(const std::vector<string>& file_names) {
         }
 
         ConfigPrinter::printFooter();
+        return true;
     }
     else {
         std::cerr << ANSI_COLOR_RED << ANSI_COLOR_BOLD << "✗ Failed to load YAML file" << ANSI_COLOR_RESET << std::endl;
+        return false;
     }
 }
 
@@ -883,7 +885,7 @@ string sensor_config_yaml;
 string runtime_config_yaml;
 string logging_config_yaml;
 
-void load_root_yaml( string file_name ) {
+bool load_root_yaml( string file_name ) {
     YamlReader reader(package_share_path + "/yaml/" + file_name);
     if (reader.load()) {
         const bool has_split_config =
@@ -896,7 +898,7 @@ void load_root_yaml( string file_name ) {
             std::cerr << ANSI_COLOR_RED
                       << "✗ root config requires sensor_config, runtime_config and logging_config"
                       << ANSI_COLOR_RESET << std::endl;
-            return;
+            return false;
         }
 
         const std::vector<std::string> config_files = {
@@ -909,9 +911,10 @@ void load_root_yaml( string file_name ) {
                       << ANSI_COLOR_GREEN << ANSI_COLOR_BOLD << config_file
                       << ANSI_COLOR_RESET << std::endl;
         }
-        load_lio_yaml(config_files);
+        return load_lio_yaml(config_files);
     }
     else {
         std::cerr << ANSI_COLOR_RED << ANSI_COLOR_BOLD << "✗ Failed to load ROOT YAML file" << ANSI_COLOR_RESET << std::endl;
+        return false;
     }
 }

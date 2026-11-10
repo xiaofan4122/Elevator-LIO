@@ -11,6 +11,7 @@
 #include <sstream>
 #include <iomanip>
 #include <filesystem>
+#include <exception>
 
 /******************************** [M0] File guide ********************************
  * [M1] FSM definition
@@ -427,7 +428,19 @@ int main(int argc, char** argv)
     std::string config_path;
     ros_node->param("config_path", config_path, string("root_config.yaml"));
     ROS_INFO("Config path: %s", config_path.c_str());
-    load_root_yaml(config_path);
+    try {
+        if (!load_root_yaml(config_path)) {
+            ROS_ERROR("Cannot load config '%s' under '%s/yaml'. Check config_path; "
+                      "ROS 1: rosrun lio lio _config_path:=root_config.yaml. Exiting.",
+                      config_path.c_str(), package_share_path.c_str());
+            lio_ros::shutdown();
+            return 1;
+        }
+    } catch (const std::exception& error) {
+        ROS_ERROR("Invalid config '%s': %s. Exiting.", config_path.c_str(), error.what());
+        lio_ros::shutdown();
+        return 1;
+    }
 
     // 设置地图的最小分辨率
     if (downsample_adaptive_enabled) {

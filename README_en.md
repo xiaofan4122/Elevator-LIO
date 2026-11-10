@@ -195,6 +195,17 @@ You can specify a YAML root configuration. The default is `root_config.yaml`:
 roslaunch lio start.launch config_path:=path_to_yaml
 ```
 
+To start only the algorithm node, first run `roscore`, then:
+
+```bash
+rosrun lio lio _config_path:=root_config.yaml
+```
+
+ROS 1 parameters persist on the ROS master. Running `rosrun lio lio` without an
+explicit configuration may reuse an earlier `/lio_node/config_path`; the command
+above overrides it. If the root configuration or a referenced YAML cannot be
+loaded, the node reports the error and exits before creating publishers or subscribers.
+
 Launch on ROS 2 with:
 
 ```bash

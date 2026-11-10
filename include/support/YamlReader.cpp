@@ -69,8 +69,10 @@ YamlReader::YamlReader(std::vector<std::string> filePaths)
 
 bool YamlReader::load() {
     rootNode_ = YAML::Node(YAML::NodeType::Map);
+    std::string current_file;
     try {
         for (const auto& file_path : filePaths_) {
+            current_file = file_path;
             const YAML::Node file_node = YAML::LoadFile(file_path);
             if (!mergeDisjointYaml(rootNode_, file_node, file_path)) {
                 fileLoaded_ = false;
@@ -80,11 +82,11 @@ bool YamlReader::load() {
         fileLoaded_ = true;
         return true;
     } catch (const YAML::BadFile &e) {
-        std::cerr << "Failed to load YAML file: " << e.what() << std::endl;
+        std::cerr << "Failed to load YAML file '" << current_file << "': " << e.what() << std::endl;
         fileLoaded_ = false;
         return false;
     } catch (const YAML::Exception &e) {
-        std::cerr << "Failed to parse YAML configuration: " << e.what() << std::endl;
+        std::cerr << "Failed to parse YAML configuration '" << current_file << "': " << e.what() << std::endl;
         fileLoaded_ = false;
         return false;
     }

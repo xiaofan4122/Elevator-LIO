@@ -195,6 +195,16 @@ roslaunch lio start.launch
 roslaunch lio start.launch config_path:=path_to_yaml
 ```
 
+也可以单独启动算法节点（需先运行 `roscore`）：
+
+```bash
+rosrun lio lio _config_path:=root_config.yaml
+```
+
+ROS 1 的参数会保留在 ROS master 中；直接运行 `rosrun lio lio` 可能读到上次的
+`/lio_node/config_path`。可用上述命令显式覆盖。根配置或其引用的 YAML 加载失败时，
+节点会报错并退出，不会创建发布器或订阅器。
+
 ROS 2 使用 Python launch 文件运行：
 
 ```bash

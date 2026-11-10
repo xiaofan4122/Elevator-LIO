@@ -38,7 +38,7 @@ pcd_save:
 
 pub:
   global_map_pub_enable: false # 是否发布全局地图 [ 耗时较长，可视化需要，实际使用中不建议开启 ] [ 只在未开启重定位且保存全局点云时有效 ]
-  ikdtree_pub_enable: true # 是否发布 ikdtree 中的点云 [ 耗时较长，可视化需要，实际使用中不建议开启 ]
+  ikdtree_pub_enable: false # 是否发布 ikdtree 中的点云 [ 耗时较长，可视化需要，实际使用中不建议开启 ]
   clouds_lidar_pub_every_n: 1 # lidar系当前帧点云每隔多少帧发布一次；1表示每帧发布，5表示每5帧发布一次
   high_frequency_odom: false # 是否在两帧 LiDAR 之间按 IMU 预积分状态高频发布里程计
   lidar_frequency: 10.0 # LiDAR 频率 [Hz]；启用 high_frequency_odom 时必须设置为真实频率

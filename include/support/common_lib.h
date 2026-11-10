@@ -557,7 +557,7 @@ inline Eigen::Matrix3d so3Exp(const Eigen::Vector3d &so3 ){
     return SO3;
 }
 
-void load_lio_yaml(const std::vector<string>& file_names);
+bool load_lio_yaml(const std::vector<string>& file_names);
 
 
 extern string sensor_config_yaml;
@@ -565,7 +565,7 @@ extern string runtime_config_yaml;
 extern string logging_config_yaml;
 extern string camera_yaml;
 
-void load_root_yaml(string file_name);
+bool load_root_yaml(string file_name);
 
 
 
